@@ -46,8 +46,8 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
-  --font-display: var(--font-display);
-  --font-sans: var(--font-body);
+  --font-display: var(--ff-display);
+  --font-sans: var(--ff-body);
   --color-navy: var(--navy);
   --color-navy-soft: var(--navy-soft);
   --color-gold: var(--gold);
@@ -77,8 +77,8 @@
 
 :root {
   --radius: 0.75rem;
-  --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --ff-display: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --ff-body: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
   /* Brand: Navy #001a4d, Gold #ffcc00, White, Light Grey #f4f6f8 */
   --navy: oklch(0.239 0.1 260.5);
@@ -168,10 +168,10 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    font-family: var(--font-body);
+    font-family: var(--ff-body);
   }
   h1, h2, h3, h4 {
-    font-family: var(--font-display);
+    font-family: var(--ff-display);
     letter-spacing: -0.01em;
   }
 }
