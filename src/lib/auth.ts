@@ -4,6 +4,8 @@ import { KEYS, SESSION_FLAG, getUsers, notify, setUsers, type AppUser, type Role
 
 export const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 export const DEFAULT_ADMIN_EMAIL = "admin@eminentbusinesshub.com";
+/** The business owner's email: always admin, and the Reply-To for welcome emails. */
+export const OWNER_EMAIL = "okechukwudestiny428@gmail.com";
 
 export type Session = {
   email: string;
@@ -13,7 +15,9 @@ export type Session = {
 };
 
 export function isAdminEmail(email: string | null | undefined) {
-  return !!email && email.toLowerCase().includes("admin");
+  if (!email) return false;
+  const e = email.trim().toLowerCase();
+  return e.includes("admin") || e === OWNER_EMAIL;
 }
 
 export function normalizeEmail(email: string) {
