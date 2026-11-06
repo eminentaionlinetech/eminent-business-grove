@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CATEGORIES, formatNaira } from "@/lib/business";
+import { CATEGORIES, DEFAULT_CATEGORY, formatNaira } from "@/lib/business";
 import { createOrder, saveCustomer, saveProduct } from "@/lib/actions";
 import type { Customer, OrderStatus, Product } from "@/lib/storage";
 
@@ -26,7 +26,7 @@ export function ProductDialog({
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
 
   useEffect(() => {
     if (!open) return;
@@ -34,16 +34,16 @@ export function ProductDialog({
     setPrice(product ? String(product.price) : "");
     setStock(product ? String(product.stock) : "");
     setImageUrl(product?.imageUrl ?? "");
-    setCategory(product?.category ?? CATEGORIES[0]);
+    setCategory(product?.category ?? DEFAULT_CATEGORY);
   }, [open, product]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const p = Number(price);
     const s = Number(stock);
-    if (!name.trim()) return toast.error("Enter a product name");
-    if (!(p >= 0) || Number.isNaN(p)) return toast.error("Enter a valid price");
-    if (!Number.isInteger(s) || s < 0) return toast.error("Stock must be a whole number");
+    if (!name.trim()) { toast.error("Enter a product name"); return; }
+    if (!(p >= 0) || Number.isNaN(p)) { toast.error("Enter a valid price"); return; }
+    if (!Number.isInteger(s) || s < 0) { toast.error("Stock must be a whole number"); return; }
     saveProduct({
       id: product?.id,
       ownerEmail: product?.ownerEmail ?? ownerEmail,
@@ -149,13 +149,13 @@ export function OrderDialog({
     e.preventDefault();
     const q = Number(quantity);
     const t = Number(total);
-    if (!customerName.trim()) return toast.error("Enter the customer's name");
-    if (!product) return toast.error("Choose a product");
-    if (!Number.isInteger(q) || q < 1) return toast.error("Quantity must be at least 1");
+    if (!customerName.trim()) { toast.error("Enter the customer's name"); return; }
+    if (!product) { toast.error("Choose a product"); return; }
+    if (!Number.isInteger(q) || q < 1) { toast.error("Quantity must be at least 1"); return; }
     if (status !== "Cancelled" && q > product.stock) {
-      return toast.error(`Only ${product.stock} of ${product.name} left in stock`);
+      { toast.error(`Only ${product.stock} of ${product.name} left in stock`); return; }
     }
-    if (Number.isNaN(t) || t < 0) return toast.error("Enter a valid total");
+    if (Number.isNaN(t) || t < 0) { toast.error("Enter a valid total"); return; }
     createOrder({
       ownerEmail: product.ownerEmail || ownerEmail,
       customerName: customerName.trim(),
@@ -276,7 +276,7 @@ export function CustomerDialog({ open, onOpenChange, ownerEmail }: { open: boole
   }, [open]);
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return toast.error("Enter a name");
+    if (!name.trim()) { toast.error("Enter a name"); return; }
     saveCustomer({ ownerEmail, name: name.trim(), phone: phone.trim(), email: email.trim() });
     toast.success("Customer added");
     onOpenChange(false);

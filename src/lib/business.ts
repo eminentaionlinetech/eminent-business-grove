@@ -122,7 +122,9 @@ export function summarizeCustomers(customers: Customer[], orders: Order[]): Cust
   return [...map.values()].sort((a, b) => b.spent - a.spent || a.name.localeCompare(b.name));
 }
 
-export const CATEGORIES = [
+export const DEFAULT_CATEGORY = "Fashion";
+
+export const CATEGORIES: string[] = [
   "Fashion",
   "Beauty",
   "Hair",

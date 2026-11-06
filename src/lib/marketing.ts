@@ -53,7 +53,7 @@ export function generateCaption(i: CopyInput, seed = Date.now()) {
     pick(CLOSERS[i.tone], seed + 1),
     i.phone ? `📞 ${i.phone}` : "",
     ``,
-    `${TAGS[i.category] ?? TAGS.Other} #EminentBusinessHub`,
+    `${TAGS[i.category] ?? TAGS["Other"]} #EminentBusinessHub`,
   ]
     .filter((l, idx, arr) => !(l === "" && arr[idx - 1] === ""))
     .join("\n")

@@ -16,9 +16,9 @@ export function getEmailConfig(): EmailJsConfig {
   const env = import.meta.env;
   const stored = readJson<Partial<EmailJsConfig>>(KEYS.emailjs, {});
   return {
-    publicKey: stored.publicKey || env.VITE_EMAILJS_PUBLIC_KEY || PLACEHOLDERS.publicKey,
-    serviceId: stored.serviceId || env.VITE_EMAILJS_SERVICE_ID || PLACEHOLDERS.serviceId,
-    templateId: stored.templateId || env.VITE_EMAILJS_TEMPLATE_ID || PLACEHOLDERS.templateId,
+    publicKey: stored.publicKey || env["VITE_EMAILJS_PUBLIC_KEY"] || PLACEHOLDERS.publicKey,
+    serviceId: stored.serviceId || env["VITE_EMAILJS_SERVICE_ID"] || PLACEHOLDERS.serviceId,
+    templateId: stored.templateId || env["VITE_EMAILJS_TEMPLATE_ID"] || PLACEHOLDERS.templateId,
     replyTo: stored.replyTo || PLACEHOLDERS.replyTo,
   };
 }

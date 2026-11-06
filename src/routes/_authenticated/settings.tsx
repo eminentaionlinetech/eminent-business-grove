@@ -41,13 +41,13 @@ function SettingsPage() {
 
   const saveProfile = () => {
     const res = updateProfile(session.email, { business: business.trim(), phone: phone.trim(), email });
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) { toast.error(res.error); return; }
     toast.success("Profile saved");
   };
 
   const savePassword = async () => {
     const res = await changePassword(session.email, cur, next);
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) { toast.error(res.error); return; }
     setCur("");
     setNext("");
     toast.success("Password changed");

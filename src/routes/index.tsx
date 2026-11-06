@@ -85,7 +85,7 @@ function AuthPage() {
     setBusy(true);
     const res = await signIn({ email, password, remember });
     setBusy(false);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) { setError(res.error); return; }
     toast.success(`Welcome back, ${res.user.business}!`);
     navigate({ to: res.user.role === "admin" ? "/admin" : "/dashboard" });
   };
@@ -97,7 +97,7 @@ function AuthPage() {
     const res = await signUp({ email, business, phone, password, remember });
     if (!res.ok) {
       setBusy(false);
-      return setError(res.error);
+      { setError(res.error); return; }
     }
     const mail = await sendWelcomeEmail(res.user.email, res.user.business);
     setBusy(false);

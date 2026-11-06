@@ -130,14 +130,14 @@ function RootComponent() {
   // so email, business, phone and password stay remembered for the next sign-in.
   useEffect(() => {
     const w = window as unknown as Record<string, unknown>;
-    const originalLogout = (w.logout || w.handleLogout) as ((...a: unknown[]) => unknown) | undefined;
+    const originalLogout = (w["logout"] || w["handleLogout"]) as ((...a: unknown[]) => unknown) | undefined;
     const wrapped = function (this: unknown, ...args: unknown[]) {
       localStorage.removeItem("ebh_is_logged_in");
       localStorage.removeItem("ebh_role");
       logout();
       return originalLogout && originalLogout !== wrapped ? originalLogout.apply(this, args) : undefined;
     };
-    w.logout = w.handleLogout = wrapped;
+    w["logout"] = w["handleLogout"] = wrapped;
   }, []);
 
   return (

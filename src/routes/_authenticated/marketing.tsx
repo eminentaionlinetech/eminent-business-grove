@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, Panel } from "@/components/ebh/ui-bits";
 import { useApp } from "@/hooks/use-store";
-import { CATEGORIES } from "@/lib/business";
+import { CATEGORIES, DEFAULT_CATEGORY } from "@/lib/business";
 import { generateCaption, generateFlyer, generateWhatsApp, type Tone } from "@/lib/marketing";
 import { cn } from "@/lib/utils";
 
@@ -38,14 +38,14 @@ function MarketingPage() {
   const [productId, setProductId] = useState<string>("custom");
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
   const [tone, setTone] = useState<Tone>("friendly");
   const [offer, setOffer] = useState("");
   const [kind, setKind] = useState<Kind>("caption");
   const [output, setOutput] = useState("");
 
   useEffect(() => {
-    if (products.length && productId === "custom" && !name) setProductId(products[0].id);
+    if (products.length && productId === "custom" && !name) setProductId(products[0]?.id ?? "custom");
   }, [products, productId, name]);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ function MarketingPage() {
   }, [productId, products]);
 
   const generate = (k: Kind = kind) => {
-    if (!name.trim()) return toast.error("Choose or type a product name");
+    if (!name.trim()) { toast.error("Choose or type a product name"); return; }
     const input = {
       product: name.trim(),
       price: price ? Number(price) : null,
