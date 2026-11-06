@@ -1,6 +1,6 @@
 import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
 import { AppShell } from "@/components/ebh/AppShell";
-import { Logo } from "@/components/ebh/Logo";
+import { Splash } from "@/components/ebh/Logo";
 import { useSession } from "@/hooks/use-store";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -15,13 +15,5 @@ function AuthenticatedLayout() {
     <AppShell session={session}>
       <Outlet />
     </AppShell>
-  );
-}
-
-export function Splash() {
-  return (
-    <div className="grid min-h-screen place-items-center bg-navy text-primary-foreground">
-      <Logo size="lg" />
-    </div>
   );
 }

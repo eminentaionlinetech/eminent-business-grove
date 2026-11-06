@@ -53,3 +53,11 @@ export function Logo({
     </div>
   );
 }
+
+export function Splash() {
+  return (
+    <div className="grid min-h-screen place-items-center bg-navy text-primary-foreground">
+      <Logo size="lg" />
+    </div>
+  );
+}

@@ -11,6 +11,8 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { Toaster } from "@/components/ui/sonner";
+import { logout } from "@/lib/auth";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -78,14 +80,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { name: "theme-color", content: "#001a4d" },
+      { title: "Eminent Business Hub — Build • Manage • Grow" },
+      { name: "description", content: "Manage products, orders, customers and marketing for your small business in Nigeria." },
+      { name: "author", content: "Eminent Business Hub" },
+      { property: "og:title", content: "Eminent Business Hub" },
+      { property: "og:description", content: "Launch. Grow. Succeed. — Built in Port Harcourt. Trusted across Nigeria." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
@@ -93,6 +95,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -118,10 +126,25 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // Expose logout for console use. It only clears ebh_is_logged_in and ebh_role,
+  // so email, business, phone and password stay remembered for the next sign-in.
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>;
+    const originalLogout = (w.logout || w.handleLogout) as ((...a: unknown[]) => unknown) | undefined;
+    const wrapped = function (this: unknown, ...args: unknown[]) {
+      localStorage.removeItem("ebh_is_logged_in");
+      localStorage.removeItem("ebh_role");
+      logout();
+      return originalLogout && originalLogout !== wrapped ? originalLogout.apply(this, args) : undefined;
+    };
+    w.logout = w.handleLogout = wrapped;
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <Toaster position="top-center" richColors />
     </QueryClientProvider>
   );
 }
