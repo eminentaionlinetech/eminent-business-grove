@@ -74,3 +74,10 @@ export function useScopedData(session: Session | null | undefined) {
     };
   }, [session, products, orders, customers, users, emailLogs]);
 }
+
+/** For pages inside the signed-in area (the layout guarantees a session). */
+export function useApp() {
+  const session = useSession() as Session;
+  const data = useScopedData(session);
+  return { session, ...data };
+}
