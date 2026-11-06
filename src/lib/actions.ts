@@ -17,7 +17,7 @@ import {
   type Product,
 } from "./storage";
 
-export function saveProduct(input: Omit<Product, "id" | "createdAt"> & { id?: string }) {
+export function saveProduct(input: Omit<Product, "id" | "createdAt"> & { id?: string | undefined }) {
   const products = getProducts();
   if (input.id) {
     setProducts(products.map((p) => (p.id === input.id ? { ...p, ...input, id: p.id } : p)));
@@ -30,7 +30,7 @@ export function deleteProduct(id: string) {
   setProducts(getProducts().filter((p) => p.id !== id));
 }
 
-export function createOrder(input: Omit<Order, "id" | "createdAt" | "productName"> & { productName?: string }) {
+export function createOrder(input: Omit<Order, "id" | "createdAt" | "productName"> & { productName?: string | undefined }) {
   const products = getProducts();
   const product = products.find((p) => p.id === input.productId);
   const order: Order = {
