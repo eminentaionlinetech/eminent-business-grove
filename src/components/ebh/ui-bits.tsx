@@ -110,11 +110,13 @@ export function BarChart({ data, format }: { data: { label: string; total: numbe
       {data.map((d, i) => (
         <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
           <span className="text-[0.6rem] font-semibold text-muted-foreground">{d.total ? format(d.total).replace("₦", "₦ ") : ""}</span>
-          <div
-            className="w-full max-w-10 rounded-t-md bg-navy transition-all"
-            style={{ height: `${Math.max(3, (d.total / max) * 100)}%`, opacity: d.total ? 1 : 0.15 }}
-            title={format(d.total)}
-          />
+          <div className="flex w-full flex-1 items-end justify-center">
+            <div
+              className="w-full max-w-10 rounded-t-md bg-navy transition-all"
+              style={{ height: `${Math.max(3, (d.total / max) * 100)}%`, opacity: d.total ? 1 : 0.15 }}
+              title={format(d.total)}
+            />
+          </div>
           <span className="text-xs text-muted-foreground">{d.label}</span>
         </div>
       ))}
