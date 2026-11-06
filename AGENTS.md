@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- All app data lives in browser localStorage via `src/lib/storage.ts` (no backend) — the owner requires on-device storage only.
+- Signed-in pages live under `src/routes/_authenticated/`; the layout guards the session and renders the shared shell.
+- Pure business rules (revenue, stock, analytics) stay in `src/lib/business.ts` so they are unit-tested in `src/test/rules.test.ts`.
+- Welcome emails go through EmailJS in the browser; keys are entered by the admin in Settings, never committed.
