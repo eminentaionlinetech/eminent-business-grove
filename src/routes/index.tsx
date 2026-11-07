@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, Copy, ShieldAlert, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Copy, ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Logo, Splash } from "@/components/ebh/Logo";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSession } from "@/hooks/use-store";
-import { ADMIN_RECOVERY_SNIPPET, DEFAULT_ADMIN_EMAIL, getRememberedDetails, signIn, signUp } from "@/lib/auth";
+import { ADMIN_RECOVERY_SNIPPET, DEFAULT_ADMIN_EMAIL, OWNER_EMAIL, getRememberedDetails, signIn, signUp } from "@/lib/auth";
 import { sendWelcomeEmail } from "@/lib/email";
 
 export const Route = createFileRoute("/")({
@@ -64,6 +64,13 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [adminFocusRequest, setAdminFocusRequest] = useState(0);
+
+  useEffect(() => {
+    if (adminFocusRequest === 0) return;
+    const frame = requestAnimationFrame(() => document.getElementById("si-pass")?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [adminFocusRequest]);
 
   // Pre-fill remembered details from this device.
   useEffect(() => {
@@ -187,6 +194,26 @@ function AuthPage() {
                 </Button>
               </form>
             </TabsContent>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              className="mt-5 h-11 w-full border-navy font-semibold text-navy"
+              onClick={() => {
+                setTab("signin");
+                setEmail(OWNER_EMAIL);
+                setPassword("");
+                setError("");
+                setAdminFocusRequest((request) => request + 1);
+              }}
+            >
+              <ShieldCheck className="h-4 w-4" /> Sign in as Admin
+            </Button>
+            {adminFocusRequest > 0 ? (
+              <p role="status" className="mt-3 break-words rounded-lg bg-secondary p-3 text-sm text-foreground">
+                Signing in with <strong>{OWNER_EMAIL}</strong> or <strong>{DEFAULT_ADMIN_EMAIL}</strong> gives full admin access on this device. Enter your password to continue.
+              </p>
+            ) : null}
           </Tabs>
 
           <p className="mt-5 flex gap-2 rounded-lg bg-secondary p-3 text-xs text-muted-foreground">
