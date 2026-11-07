@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import logoFull from "@/assets/ebh-logo-full.jpg.asset.json";
+import logoFull from "@/assets/ebh-logo-full.png.asset.json";
 import logoMark from "@/assets/ebh-logo-mark.png.asset.json";
 
 /**
@@ -23,7 +23,7 @@ export function Logo({
       <img
         src={logoFull.url}
         alt="Eminent Business Hub — Empowering Small Businesses • Products • Orders • Marketing • Growth"
-        className={cn("h-40 w-40 rounded-2xl object-cover shadow-lg ring-1 ring-gold/30 md:h-56 md:w-56", className)}
+        className={cn("h-auto w-72 max-w-full rounded-2xl shadow-lg ring-1 ring-gold/30 md:w-96", className)}
       />
     );
   }
