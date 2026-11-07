@@ -9,5 +9,5 @@
 - [x] Backup / restore in Settings
 - [x] README runbook
 - [x] Tests for key rules
-- [ ] Original logo — waiting on the user's upload (text placeholder until then)
+- [x] Original logo — uploaded logo on sign-in/loading screen, cropped symbol in menus, browser tab icon
 - [ ] EmailJS keys — waiting on the user (enter in Settings as admin)
