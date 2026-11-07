@@ -196,4 +196,54 @@ export async function changePassword(email: string, current: string, next: strin
   return { ok: true as const };
 }
 
+/** Last 10 digits so "0803 123 4567" and "+234 803 123 4567" match. */
+export function phoneKey(phone: string) {
+  return phone.replace(/\D/g, "").slice(-10);
+}
+
+/** Step 1 of password recovery: find the account created with this email on this device. */
+export function findAccount(email: string) {
+  const e = normalizeEmail(email);
+  const user = getUsers().find((u) => u.email === e);
+  if (!user) return null;
+  return { email: user.email, business: user.business, verifyBy: phoneKey(user.phone) ? ("phone" as const) : ("business" as const) };
+}
+
+export type ResetResult = { ok: true; user: AppUser } | { ok: false; error: string };
+
+/**
+ * Step 2 of password recovery: confirm it's the owner (phone number used at sign-up,
+ * or business name when no phone was saved), set the new password and sign them in.
+ */
+export async function resetPassword(input: {
+  email: string;
+  proof: string;
+  newPassword: string;
+  remember?: boolean;
+}): Promise<ResetResult> {
+  const email = normalizeEmail(input.email);
+  const users = getUsers();
+  const user = users.find((u) => u.email === email);
+  if (!user) return { ok: false, error: "No account found with this email on this device." };
+
+  const usesPhone = !!phoneKey(user.phone);
+  const matches = usesPhone
+    ? phoneKey(input.proof).length >= 7 && phoneKey(input.proof) === phoneKey(user.phone)
+    : input.proof.trim().toLowerCase() === user.business.trim().toLowerCase();
+  if (!matches) {
+    return {
+      ok: false,
+      error: usesPhone
+        ? "That phone number doesn't match the one used to create this account."
+        : "That business name doesn't match this account.",
+    };
+  }
+  if (input.newPassword.length < 6) return { ok: false, error: "New password must be at least 6 characters." };
+
+  user.passwordHash = await hashPassword(input.newPassword);
+  setUsers(users);
+  startSession(user, input.newPassword, input.remember ?? true);
+  return { ok: true, user };
+}
+
 export const ADMIN_RECOVERY_SNIPPET = `localStorage.setItem('ebh_email','${DEFAULT_ADMIN_EMAIL}'); localStorage.setItem('ebh_is_logged_in','true'); localStorage.setItem('ebh_role','admin'); localStorage.setItem('ebh_remember','true'); location.reload();`;
