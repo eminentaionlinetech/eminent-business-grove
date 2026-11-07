@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { isAdminEmail, logout, readSession, signIn, signUp } from "@/lib/auth";
 import { revenueOf, stockDelta } from "@/lib/business";
+import { getEmailConfig, saveEmailConfig } from "@/lib/email";
 import type { Order } from "@/lib/storage";
 
 beforeEach(() => {
@@ -12,7 +13,8 @@ describe("auth rules", () => {
   it("treats emails containing admin and the owner email as admin", () => {
     expect(isAdminEmail("admin@eminentbusinesshub.com")).toBe(true);
     expect(isAdminEmail("shopadmin@gmail.com")).toBe(true);
-    expect(isAdminEmail("okechukwudestiny428@gmail.com")).toBe(true);
+    expect(isAdminEmail("eminentbusinesshubhotmail@gmail.com")).toBe(true);
+    expect(isAdminEmail("okechukwudestiny428@gmail.com")).toBe(false);
     expect(isAdminEmail("ada@gmail.com")).toBe(false);
   });
 
@@ -41,6 +43,16 @@ describe("auth rules", () => {
     sessionStorage.clear();
     expect(readSession(Date.now() + 29 * 86400000)).not.toBeNull();
     expect(readSession(Date.now() + 31 * 86400000)).toBeNull();
+  });
+});
+
+describe("owner email", () => {
+  it("uses the new owner for default welcome-email replies", () => {
+    expect(getEmailConfig().replyTo).toBe("eminentbusinesshubhotmail@gmail.com");
+  });
+  it("replaces the old owner in previously saved email settings", () => {
+    saveEmailConfig({ publicKey: "test-public", serviceId: "test-service", templateId: "test-template", replyTo: "okechukwudestiny428@gmail.com" });
+    expect(getEmailConfig().replyTo).toBe("eminentbusinesshubhotmail@gmail.com");
   });
 });
 
