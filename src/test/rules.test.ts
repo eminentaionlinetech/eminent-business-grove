@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { isAdminEmail, logout, readSession, signIn, signUp } from "@/lib/auth";
+import { findAccount, isAdminEmail, logout, readSession, resetPassword, signIn, signUp } from "@/lib/auth";
 import { revenueOf, stockDelta } from "@/lib/business";
 import { getEmailConfig, saveEmailConfig } from "@/lib/email";
 import type { Order } from "@/lib/storage";
@@ -43,6 +43,33 @@ describe("auth rules", () => {
     sessionStorage.clear();
     expect(readSession(Date.now() + 29 * 86400000)).not.toBeNull();
     expect(readSession(Date.now() + 31 * 86400000)).toBeNull();
+  });
+});
+
+describe("password recovery", () => {
+  const make = async () => {
+    await signUp({ email: "ada@gmail.com", business: "Ada Fabrics", phone: "0803 123 4567", password: "oldpass1", remember: true });
+    logout();
+  };
+  it("finds the account by the sign-up email", async () => {
+    await make();
+    expect(findAccount("ADA@gmail.com ")?.business).toBe("Ada Fabrics");
+    expect(findAccount("nobody@gmail.com")).toBeNull();
+  });
+  it("resets with the sign-up phone and the new password works", async () => {
+    await make();
+    const res = await resetPassword({ email: "ada@gmail.com", proof: "+234 803 123 4567", newPassword: "newpass1" });
+    expect(res.ok).toBe(true);
+    expect(readSession()?.email).toBe("ada@gmail.com");
+    logout();
+    expect((await signIn({ email: "ada@gmail.com", password: "newpass1", remember: true })).ok).toBe(true);
+    expect((await signIn({ email: "ada@gmail.com", password: "oldpass1", remember: true })).ok).toBe(false);
+  });
+  it("refuses a wrong phone number and keeps the old password", async () => {
+    await make();
+    const res = await resetPassword({ email: "ada@gmail.com", proof: "08099999999", newPassword: "newpass1" });
+    expect(res.ok).toBe(false);
+    expect((await signIn({ email: "ada@gmail.com", password: "oldpass1", remember: true })).ok).toBe(true);
   });
 });
 
