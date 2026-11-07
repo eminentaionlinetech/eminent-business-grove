@@ -67,7 +67,9 @@ function AuthPage() {
   const [adminFocusRequest, setAdminFocusRequest] = useState(0);
 
   useEffect(() => {
-    if (adminFocusRequest > 0) document.getElementById("si-pass")?.focus();
+    if (adminFocusRequest === 0) return;
+    const frame = requestAnimationFrame(() => document.getElementById("si-pass")?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [adminFocusRequest]);
 
   // Pre-fill remembered details from this device.
