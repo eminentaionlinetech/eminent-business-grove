@@ -1,38 +1,41 @@
 import { cn } from "@/lib/utils";
+import logoFull from "@/assets/ebh-logo-full.png.asset.json";
+import logoMark from "@/assets/ebh-logo-mark.png.asset.json";
 
 /**
- * Brand mark slot. Uses ONLY the owner's original logo.
- * Until the original logo file is added, this shows the brand name as text (no invented artwork).
- * To use the real logo: set LOGO_SRC to the uploaded image URL.
+ * Brand mark. Uses ONLY the owner's original logo:
+ * - full: the original uploaded logo (symbol + name + tagline)
+ * - mark: a straight crop of the symbol from that same file, for small spaces
  */
-const LOGO_SRC: string | null = null;
-
 export function Logo({
   size = "md",
   showTagline = false,
+  full = false,
   className,
 }: {
   size?: "sm" | "md" | "lg";
   showTagline?: boolean;
+  full?: boolean;
   className?: string;
 }) {
+  if (full) {
+    return (
+      <img
+        src={logoFull.url}
+        alt="Eminent Business Hub — Empowering Small Businesses • Products • Orders • Marketing • Growth"
+        className={cn("h-auto w-72 max-w-full rounded-2xl shadow-lg ring-1 ring-gold/30 md:w-96", className)}
+      />
+    );
+  }
+
   const box = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-9 w-9" : "h-11 w-11";
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <div
-        className={cn(
-          "grid shrink-0 place-items-center overflow-hidden rounded-full bg-navy p-1 ring-2 ring-gold/70",
-          box,
-        )}
-      >
-        {LOGO_SRC ? (
-          <img src={LOGO_SRC} alt="Eminent Business Hub logo" className="h-full w-full object-contain" />
-        ) : (
-          <span className="font-display text-[0.6rem] font-extrabold leading-none tracking-wider text-gold">
-            EBH
-          </span>
-        )}
-      </div>
+      <img
+        src={logoMark.url}
+        alt="Eminent Business Hub logo"
+        className={cn("shrink-0 rounded-lg object-cover ring-1 ring-gold/40", box)}
+      />
       <div className="min-w-0 leading-tight">
         <div
           className={cn(
@@ -57,7 +60,7 @@ export function Logo({
 export function Splash() {
   return (
     <div className="grid min-h-screen place-items-center bg-navy text-primary-foreground">
-      <Logo size="lg" />
+      <Logo full className="animate-pulse" />
     </div>
   );
 }

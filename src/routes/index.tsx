@@ -117,7 +117,7 @@ function AuthPage() {
   return (
     <div className="min-h-screen bg-background md:grid md:grid-cols-2">
       <div className="bg-navy-gradient px-6 pb-10 pt-8 text-primary-foreground md:flex md:flex-col md:justify-between md:p-12">
-        <Logo size="lg" showTagline />
+        <Logo full className="mx-auto md:mx-0" />
         <div className="mt-8 md:mt-0">
           <h1 className="text-3xl font-extrabold leading-tight md:text-5xl">
             From chaos <br className="hidden md:block" />
