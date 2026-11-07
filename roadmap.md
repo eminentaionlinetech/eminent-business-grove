@@ -10,4 +10,5 @@
 - [x] README runbook
 - [x] Tests for key rules
 - [x] Original logo — uploaded logo on sign-in/loading screen, cropped symbol in menus, browser tab icon
+- [x] Password recovery — sign-up email + sign-up phone, then new password and auto sign-in
 - [ ] EmailJS keys — waiting on the user (enter in Settings as admin)

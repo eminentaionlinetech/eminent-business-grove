@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, Copy, ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
+import { ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Logo, Splash } from "@/components/ebh/Logo";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ForgotPasswordDialog, PasswordInput } from "@/components/ebh/ForgotPassword";
 import { useSession } from "@/hooks/use-store";
-import { ADMIN_RECOVERY_SNIPPET, DEFAULT_ADMIN_EMAIL, OWNER_EMAIL, getRememberedDetails, signIn, signUp } from "@/lib/auth";
+import { DEFAULT_ADMIN_EMAIL, OWNER_EMAIL, getRememberedDetails, signIn, signUp } from "@/lib/auth";
 import { sendWelcomeEmail } from "@/lib/email";
 
 export const Route = createFileRoute("/")({
@@ -26,31 +26,6 @@ export const Route = createFileRoute("/")({
   }),
   component: AuthPage,
 });
-
-function PasswordInput({ id, value, onChange, autoComplete }: { id: string; value: string; onChange: (v: string) => void; autoComplete: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="relative">
-      <Input
-        id={id}
-        type={show ? "text" : "password"}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        autoComplete={autoComplete}
-        className="h-11 pr-11"
-        required
-      />
-      <button
-        type="button"
-        onClick={() => setShow((s) => !s)}
-        className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground hover:text-foreground"
-        aria-label={show ? "Hide password" : "Show password"}
-      >
-        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-      </button>
-    </div>
-  );
-}
 
 function AuthPage() {
   const session = useSession();
@@ -223,45 +198,16 @@ function AuthPage() {
         </div>
       </div>
 
-      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Forgot password?</DialogTitle>
-            <DialogDescription>
-              Passwords are stored on this device only, so there is no reset email. You can sign in as admin instead.
-            </DialogDescription>
-          </DialogHeader>
-          <ol className="list-decimal space-y-2 pl-5 text-sm">
-            <li>
-              Sign in with <b>{DEFAULT_ADMIN_EMAIL}</b> (or any email containing "admin") and a new password. The first admin sign-in on a device creates the admin account.
-            </li>
-            <li>Or, on a computer, open the browser console and paste this line:</li>
-          </ol>
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-navy p-3 text-xs text-gold">{ADMIN_RECOVERY_SNIPPET}</pre>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                navigator.clipboard?.writeText(ADMIN_RECOVERY_SNIPPET);
-                toast.success("Copied");
-              }}
-            >
-              <Copy className="h-4 w-4" /> Copy line
-            </Button>
-            <Button
-              className="bg-gold text-navy hover:bg-gold/90"
-              onClick={() => {
-                setEmail(DEFAULT_ADMIN_EMAIL);
-                setPassword("");
-                setTab("signin");
-                setForgotOpen(false);
-              }}
-            >
-              Sign in as admin
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ForgotPasswordDialog
+        open={forgotOpen}
+        onOpenChange={setForgotOpen}
+        initialEmail={email}
+        onRecovered={(user) => {
+          setForgotOpen(false);
+          toast.success("Password reset successful!", { description: `Welcome back, ${user.business}.` });
+          navigate({ to: user.role === "admin" ? "/admin" : "/dashboard" });
+        }}
+      />
     </div>
   );
 }
