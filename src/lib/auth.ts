@@ -5,7 +5,7 @@ import { KEYS, SESSION_FLAG, getUsers, notify, setUsers, type AppUser, type Role
 export const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 export const DEFAULT_ADMIN_EMAIL = "admin@eminentbusinesshub.com";
 /** The business owner's email: always admin, and the Reply-To for welcome emails. */
-export const OWNER_EMAIL = "okechukwudestiny428@gmail.com";
+export const OWNER_EMAIL = "eminentbusinesshubhotmail@gmail.com";
 
 export type Session = {
   email: string;
