@@ -19,7 +19,9 @@ export function getEmailConfig(): EmailJsConfig {
     publicKey: stored.publicKey || env["VITE_EMAILJS_PUBLIC_KEY"] || PLACEHOLDERS.publicKey,
     serviceId: stored.serviceId || env["VITE_EMAILJS_SERVICE_ID"] || PLACEHOLDERS.serviceId,
     templateId: stored.templateId || env["VITE_EMAILJS_TEMPLATE_ID"] || PLACEHOLDERS.templateId,
-    replyTo: stored.replyTo || PLACEHOLDERS.replyTo,
+    replyTo: stored.replyTo?.trim().toLowerCase() === "okechukwudestiny428@gmail.com"
+      ? OWNER_EMAIL
+      : stored.replyTo || PLACEHOLDERS.replyTo,
   };
 }
 
