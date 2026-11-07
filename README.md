@@ -32,5 +32,5 @@ Placeholder only — no payment provider connected yet.
 
 ## Troubleshooting
 - Data missing on another phone: data is per device — use Backup & restore.
-- Forgot password: on the sign-in screen tap "Forgot password?" and sign in as admin.
+- Forgot password: on the sign-in screen tap "Forgot password?", enter the sign-up email, confirm the sign-up phone number, and choose a new password (works on the device where the account was created).
 - Email not arriving: check Admin → Customers / Users → Email logs.
