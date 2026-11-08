@@ -34,3 +34,5 @@ use the editor.
 - Signed-in pages live under `src/routes/_authenticated/`; the layout guards the session and renders the shared shell.
 - Pure business rules (revenue, stock, analytics) stay in `src/lib/business.ts` so they are unit-tested in `src/test/rules.test.ts`.
 - Welcome emails go through EmailJS in the browser; keys are entered by the admin in Settings, never committed.
+- The public shop lives under `src/routes/shop/` (outside the signed-in area) and only shows vendor business name and phone, never emails or passwords — shoppers are anonymous.
+- Product photos uploaded from a phone are shrunk to small JPEG data and stored on the product itself — keeps everything on-device.
