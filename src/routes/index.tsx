@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
+import { ShieldAlert, ShieldCheck, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Logo, Splash } from "@/components/ebh/Logo";
 import { Button } from "@/components/ui/button";
@@ -108,6 +108,11 @@ function AuthPage() {
           <p className="mt-3 max-w-md text-sm opacity-85 md:text-base">
             Track products, orders, customers and marketing for your shop, Instagram or WhatsApp business — all from your phone.
           </p>
+          <Button asChild variant="outline" className="mt-5 border-gold bg-transparent text-gold hover:bg-gold hover:text-navy">
+            <Link to="/shop">
+              <ShoppingBag className="h-4 w-4" /> Browse the shop
+            </Link>
+          </Button>
         </div>
         <p className="mt-8 hidden text-sm text-gold md:block">Launch. Grow. Succeed. — Built in Port Harcourt. Trusted across Nigeria.</p>
       </div>
