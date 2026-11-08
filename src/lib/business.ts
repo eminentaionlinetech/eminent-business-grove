@@ -170,7 +170,7 @@ export type ShopItem = Product & { vendor: ShopVendor };
 export function shopListing(
   products: Product[],
   users: { email: string; business: string; phone: string }[],
-  filter: { q?: string; category?: string; vendorSlug?: string } = {},
+  filter: { q?: string | undefined; category?: string | undefined; vendorSlug?: string | undefined } = {},
 ): ShopItem[] {
   const vendors = shopVendors(users);
   const q = (filter.q ?? "").trim().toLowerCase();

@@ -97,7 +97,7 @@ export function ShopSkeleton() {
 }
 
 /** Search + category chips + product grid. Used by the main shop and each vendor's store. */
-export function ShopBrowser({ vendorSlug, emptyAction }: { vendorSlug?: string; emptyAction?: ReactNode }) {
+export function ShopBrowser({ vendorSlug, emptyAction }: { vendorSlug?: string | undefined; emptyAction?: ReactNode }) {
   const hydrated = useHydrated();
   const { products, users } = useShopData();
   const [q, setQ] = useState("");
