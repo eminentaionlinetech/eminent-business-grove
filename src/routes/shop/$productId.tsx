@@ -28,6 +28,10 @@ export const Route = createFileRoute("/shop/$productId")({
 
 function ProductPage() {
   const { productId } = Route.useParams();
+  return <ProductView key={productId} productId={productId} />;
+}
+
+function ProductView({ productId }: { productId: string }) {
   const hydrated = useHydrated();
   const { products, users } = useShopData();
   const all = useMemo(() => shopListing(products, users), [products, users]);

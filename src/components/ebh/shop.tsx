@@ -8,7 +8,7 @@ import { CATEGORIES, formatNaira, shopListing, type ShopItem } from "@/lib/busin
 import { KEYS, type AppUser, type Product } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { Logo } from "./Logo";
-import { ProductImage, StockBadge } from "./ui-bits";
+import { ProductImage } from "./ui-bits";
 
 const noop = () => () => {};
 /** false during server render, true once the page is running on the phone. */
@@ -168,4 +168,3 @@ export function ShopBrowser({ vendorSlug, emptyAction }: { vendorSlug?: string; 
   );
 }
 
-export { StockBadge };
