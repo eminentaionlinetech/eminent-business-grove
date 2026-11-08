@@ -110,7 +110,7 @@ describe("public shop", () => {
     const items = [product(), product({ id: "p2", category: "Beauty" }), product({ id: "p3", ownerEmail: "gone@gmail.com" })];
     expect(shopListing(items, [vendor]).map((p) => p.id).sort()).toEqual(["p1", "p2"]);
     expect(shopListing(items, [vendor], { category: "Beauty" }).map((p) => p.id)).toEqual(["p2"]);
-    expect(shopListing(items, [vendor])[0].vendor.business).toBe("Ada Fabrics");
+    expect(shopListing(items, [vendor])[0]?.vendor.business).toBe("Ada Fabrics");
   });
 
   it("refuses orders above stock, sold-out items, or without name/phone", async () => {
@@ -130,12 +130,12 @@ describe("public shop", () => {
     setProducts([product()]);
     const res = placeShopOrder({ productId: "p1", quantity: 2, name: "Chika", phone: "08031234567", note: "Rumuola" });
     expect(res.ok).toBe(true);
-    const [order] = getOrders();
+    const order = getOrders()[0]!;
     expect(order.ownerEmail).toBe("ada@gmail.com");
     expect(order.status).toBe("Pending");
     expect(order.total).toBe(37000);
     expect(order.source).toBe("shop");
-    expect(getProducts()[0].stock).toBe(1);
+    expect(getProducts()[0]?.stock).toBe(1);
     expect(placeShopOrder({ productId: "p1", quantity: 2, name: "Chika", phone: "08031234567", note: "" }).ok).toBe(false);
     expect(getOrders()).toHaveLength(1);
   });
