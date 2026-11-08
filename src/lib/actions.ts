@@ -1,5 +1,5 @@
 // Mutations that touch several collections at once (orders change stock, etc.).
-import { applyStock, stockDelta } from "./business";
+import { applyStock, stockDelta, validateShopOrder } from "./business";
 import {
   KEYS,
   getCustomers,
@@ -115,4 +115,24 @@ export function addStarterProducts(ownerEmail: string) {
     { name: "Leather Tote Bag", price: 24000, stock: 7, category: "Shoes & Bags", imageUrl: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&q=70" },
   ].map((p) => ({ ...p, id: uid("prd"), ownerEmail, createdAt: now }));
   setProducts([...starter, ...getProducts()]);
+}
+
+/** A shopper buys from the public shop: checks stock, then sends a Pending order to the vendor. */
+export function placeShopOrder(input: { productId: string; quantity: number; name: string; phone: string; note: string }) {
+  const product = getProducts().find((p) => p.id === input.productId);
+  if (!product) return { ok: false as const, error: "This product is no longer available" };
+  const error = validateShopOrder({ stock: product.stock, quantity: input.quantity, name: input.name, phone: input.phone });
+  if (error) return { ok: false as const, error };
+  const order = createOrder({
+    ownerEmail: product.ownerEmail,
+    customerName: input.name.trim(),
+    customerPhone: input.phone.trim(),
+    productId: product.id,
+    quantity: input.quantity,
+    total: product.price * input.quantity,
+    status: "Pending",
+    note: input.note.trim() || undefined,
+    source: "shop",
+  });
+  return { ok: true as const, order };
 }

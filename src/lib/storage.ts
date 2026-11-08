@@ -36,6 +36,10 @@ export type Order = {
   total: number;
   status: OrderStatus;
   createdAt: string;
+  /** Delivery address or message from a shopper (public shop orders). */
+  note?: string | undefined;
+  /** "shop" when a shopper placed it from the public shop. */
+  source?: "shop" | "manual" | undefined;
 };
 
 export type Customer = {

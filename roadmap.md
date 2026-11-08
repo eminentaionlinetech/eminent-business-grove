@@ -11,4 +11,5 @@
 - [x] Tests for key rules
 - [x] Original logo — uploaded logo on sign-in/loading screen, cropped symbol in menus, browser tab icon
 - [x] Password recovery — sign-up email + sign-up phone, then new password and auto sign-in
+- [x] Public shop — browse by category, seller stores, product photos, order form that sends Pending orders to the seller
 - [ ] EmailJS keys — waiting on the user (enter in Settings as admin)

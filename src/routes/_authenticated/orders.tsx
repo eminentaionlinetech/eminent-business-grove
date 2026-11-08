@@ -100,11 +100,13 @@ function OrdersPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-bold">{o.customerName}</span>
                   <StatusBadge status={o.status} />
+                  {o.source === "shop" ? <span className="rounded-full bg-gold-soft px-2 py-0.5 text-[0.65rem] font-bold text-navy">From shop</span> : null}
                 </div>
                 <div className="mt-0.5 text-sm text-muted-foreground">
                   {o.productName} × {o.quantity} • {new Date(o.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
                   {isAdmin ? ` • ${o.ownerEmail}` : ""}
                 </div>
+                {o.note ? <div className="mt-1 text-xs text-muted-foreground">Delivery: {o.note}</div> : null}
               </div>
               <div className="font-display text-lg font-bold">{formatNaira(o.total)}</div>
               <div className="flex w-full items-center gap-2 sm:w-auto">
