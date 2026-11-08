@@ -97,3 +97,52 @@ describe("business rules", () => {
     expect(stockDelta("Pending", "Completed", 2)).toBe(0);
   });
 });
+
+describe("public shop", () => {
+  const vendor = { email: "ada@gmail.com", business: "Ada Fabrics", phone: "0803 123 4567" };
+  const product = (over: Partial<import("@/lib/storage").Product> = {}) => ({
+    id: "p1", ownerEmail: vendor.email, name: "Ankara Dress", price: 18500, stock: 3,
+    imageUrl: "", category: "Fashion", createdAt: "2026-11-01T00:00:00.000Z", ...over,
+  });
+
+  it("hides products from deleted sellers and filters by category", async () => {
+    const { shopListing } = await import("@/lib/business");
+    const items = [product(), product({ id: "p2", category: "Beauty" }), product({ id: "p3", ownerEmail: "gone@gmail.com" })];
+    expect(shopListing(items, [vendor]).map((p) => p.id).sort()).toEqual(["p1", "p2"]);
+    expect(shopListing(items, [vendor], { category: "Beauty" }).map((p) => p.id)).toEqual(["p2"]);
+    expect(shopListing(items, [vendor])[0].vendor.business).toBe("Ada Fabrics");
+  });
+
+  it("refuses orders above stock, sold-out items, or without name/phone", async () => {
+    const { validateShopOrder } = await import("@/lib/business");
+    const ok = { stock: 3, quantity: 2, name: "Chika", phone: "08031234567" };
+    expect(validateShopOrder(ok)).toBeNull();
+    expect(validateShopOrder({ ...ok, quantity: 4 })).toBe("Only 3 left in stock");
+    expect(validateShopOrder({ ...ok, stock: 0, quantity: 1 })).toBe("This item is sold out");
+    expect(validateShopOrder({ ...ok, quantity: 0 })).not.toBeNull();
+    expect(validateShopOrder({ ...ok, name: " " })).not.toBeNull();
+    expect(validateShopOrder({ ...ok, phone: "0803" })).not.toBeNull();
+  });
+
+  it("a shop order goes to the seller as Pending and takes the stock", async () => {
+    const { placeShopOrder } = await import("@/lib/actions");
+    const { getOrders, getProducts, setProducts } = await import("@/lib/storage");
+    setProducts([product()]);
+    const res = placeShopOrder({ productId: "p1", quantity: 2, name: "Chika", phone: "08031234567", note: "Rumuola" });
+    expect(res.ok).toBe(true);
+    const [order] = getOrders();
+    expect(order.ownerEmail).toBe("ada@gmail.com");
+    expect(order.status).toBe("Pending");
+    expect(order.total).toBe(37000);
+    expect(order.source).toBe("shop");
+    expect(getProducts()[0].stock).toBe(1);
+    expect(placeShopOrder({ productId: "p1", quantity: 2, name: "Chika", phone: "08031234567", note: "" }).ok).toBe(false);
+    expect(getOrders()).toHaveLength(1);
+  });
+
+  it("turns Nigerian numbers into WhatsApp format", async () => {
+    const { toWhatsAppNumber } = await import("@/lib/business");
+    expect(toWhatsAppNumber("0803 123 4567")).toBe("2348031234567");
+    expect(toWhatsAppNumber("+234 803 123 4567")).toBe("2348031234567");
+  });
+});

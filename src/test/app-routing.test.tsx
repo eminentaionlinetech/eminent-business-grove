@@ -15,3 +15,12 @@ describe("App routing", () => {
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
 });
+
+describe("Shop routing", () => {
+  it("matches the shop, a product page and a seller store", () => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+    expect(router.matchRoutes("/shop").at(-1)?.routeId).toBe("/shop/");
+    expect(router.matchRoutes("/shop/p1").at(-1)?.routeId).toBe("/shop/$productId");
+    expect(router.matchRoutes("/shop/store/ada-x1").at(-1)?.routeId).toBe("/shop/store/$vendor");
+  });
+});
