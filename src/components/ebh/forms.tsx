@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Camera, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CATEGORIES, DEFAULT_CATEGORY, formatNaira } from "@/lib/business";
 import { createOrder, saveCustomer, saveProduct } from "@/lib/actions";
 import type { Customer, OrderStatus, Product } from "@/lib/storage";
+import { resizeImageFile } from "@/lib/image";
+import { ProductImage } from "./ui-bits";
 
 const goldBtn = "bg-gold text-navy hover:bg-gold/90";
 
@@ -27,6 +30,22 @@ export function ProductDialog({
   const [stock, setStock] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORY);
+  const [processing, setProcessing] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const isUpload = imageUrl.startsWith("data:");
+
+  const onPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setProcessing(true);
+    try {
+      setImageUrl(await resizeImageFile(file));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not use this photo");
+    } finally {
+      setProcessing(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -44,15 +63,20 @@ export function ProductDialog({
     if (!name.trim()) { toast.error("Enter a product name"); return; }
     if (!(p >= 0) || Number.isNaN(p)) { toast.error("Enter a valid price"); return; }
     if (!Number.isInteger(s) || s < 0) { toast.error("Stock must be a whole number"); return; }
-    saveProduct({
-      id: product?.id,
-      ownerEmail: product?.ownerEmail ?? ownerEmail,
-      name: name.trim(),
-      price: p,
-      stock: s,
-      imageUrl: imageUrl.trim(),
-      category,
-    });
+    try {
+      saveProduct({
+        id: product?.id,
+        ownerEmail: product?.ownerEmail ?? ownerEmail,
+        name: name.trim(),
+        price: p,
+        stock: s,
+        imageUrl: imageUrl.trim(),
+        category,
+      });
+    } catch {
+      toast.error("Your phone's storage for this app is full. Remove some photos or use a photo link.");
+      return;
+    }
     toast.success(product ? "Product updated" : "Product added");
     onOpenChange(false);
   };
@@ -93,9 +117,38 @@ export function ProductDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="p-img">Image link (optional)</Label>
-            <Input id="p-img" type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" />
+          <div className="space-y-2">
+            <Label>Photo</Label>
+            <div className="flex items-center gap-3">
+              <ProductImage src={imageUrl} alt="Product photo preview" className="h-20 w-20 shrink-0 rounded-xl border" />
+              <div className="flex flex-1 flex-col gap-2">
+                <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={processing}>
+                  {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  {imageUrl ? "Change photo" : "Take or choose photo"}
+                </Button>
+                {imageUrl ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setImageUrl("")}>
+                    <X className="h-3.5 w-3.5" /> Remove photo
+                  </Button>
+                ) : null}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                aria-label="Product photo"
+                onChange={(e) => onPhoto(e.target.files?.[0])}
+              />
+            </div>
+            <Input
+              id="p-img"
+              type="url"
+              aria-label="Photo link"
+              value={isUpload ? "" : imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder={isUpload ? "Photo added from your phone" : "Or paste a photo link (https://…)"}
+            />
           </div>
           <DialogFooter>
             <Button type="submit" className={goldBtn}>
