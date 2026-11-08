@@ -135,3 +135,68 @@ export const CATEGORIES: string[] = [
   "Services",
   "Other",
 ];
+
+// ---------- Public shop ----------
+export type ShopVendor = { email: string; slug: string; business: string; phone: string };
+
+function hash4(s: string) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36).slice(-4);
+}
+
+/** Public store address for a vendor: business name + short code (never the email). */
+export function vendorSlug(business: string, email: string) {
+  const base = business
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  return `${base || "shop"}-${hash4(email.toLowerCase())}`;
+}
+
+/** Only public details of each vendor — no email shown, no password. */
+export function shopVendors(users: { email: string; business: string; phone: string }[]) {
+  const map = new Map<string, ShopVendor>();
+  users.forEach((u) =>
+    map.set(u.email, { email: u.email, slug: vendorSlug(u.business, u.email), business: u.business || "EBH Seller", phone: u.phone }),
+  );
+  return map;
+}
+
+export type ShopItem = Product & { vendor: ShopVendor };
+
+/** Products shown in the public shop: only from existing vendors, in-stock first, newest first. */
+export function shopListing(
+  products: Product[],
+  users: { email: string; business: string; phone: string }[],
+  filter: { q?: string; category?: string; vendorSlug?: string } = {},
+): ShopItem[] {
+  const vendors = shopVendors(users);
+  const q = (filter.q ?? "").trim().toLowerCase();
+  return products
+    .map((p) => ({ p, vendor: vendors.get(p.ownerEmail) }))
+    .filter((x): x is { p: Product; vendor: ShopVendor } => !!x.vendor)
+    .filter(({ p }) => !filter.category || filter.category === "All" || p.category === filter.category)
+    .filter(({ vendor }) => !filter.vendorSlug || vendor.slug === filter.vendorSlug)
+    .filter(({ p, vendor }) => !q || `${p.name} ${p.category} ${vendor.business}`.toLowerCase().includes(q))
+    .sort((a, b) => Number(b.p.stock > 0) - Number(a.p.stock > 0) || b.p.createdAt.localeCompare(a.p.createdAt))
+    .map(({ p, vendor }) => ({ ...p, vendor }));
+}
+
+/** Checks a shopper's order before it is sent to the vendor. Returns an error message, or null when fine. */
+export function validateShopOrder(input: { stock: number; quantity: number; name: string; phone: string }) {
+  if (!input.name.trim()) return "Enter your name";
+  if (input.phone.replace(/\D/g, "").length < 10) return "Enter a valid phone number so the seller can reach you";
+  if (!Number.isInteger(input.quantity) || input.quantity < 1) return "Quantity must be at least 1";
+  if (input.stock <= 0) return "This item is sold out";
+  if (input.quantity > input.stock) return `Only ${input.stock} left in stock`;
+  return null;
+}
+
+/** Nigerian numbers to WhatsApp format: 0803… → 234803… */
+export function toWhatsAppNumber(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("0")) return `234${digits.slice(1)}`;
+  return digits;
+}
