@@ -1,12 +1,14 @@
 // Mutations that touch several collections at once (orders change stock, etc.).
-import { applyStock, stockDelta, validateShopOrder } from "./business";
+import { addToCartList, applyStock, resolveCart, shopListing, stockDelta, validateShopOrder } from "./business";
 import {
   KEYS,
+  getCart,
   getCustomers,
   getOrders,
   getProducts,
   getUsers,
   notify,
+  setCart,
   setCustomers,
   setOrders,
   setProducts,
@@ -119,7 +121,7 @@ export function addStarterProducts(ownerEmail: string) {
 
 /** A shopper buys from the public shop: checks stock, then sends a Pending order to the vendor. */
 export function placeShopOrder(input: { productId: string; quantity: number; name: string; phone: string; note: string }) {
-  const product = getProducts().find((p) => p.id === input.productId);
+  const product = shopListing(getProducts(), getUsers()).find((p) => p.id === input.productId);
   if (!product) return { ok: false as const, error: "This product is no longer available" };
   const error = validateShopOrder({ stock: product.stock, quantity: input.quantity, name: input.name, phone: input.phone });
   if (error) return { ok: false as const, error };
@@ -135,4 +137,66 @@ export function placeShopOrder(input: { productId: string; quantity: number; nam
     source: "shop",
   });
   return { ok: true as const, order };
+}
+
+// ---------- Cart (shopper's phone) ----------
+export function addToCart(productId: string, quantity: number) {
+  const product = shopListing(getProducts(), getUsers()).find((p) => p.id === productId);
+  if (!product) return { ok: false as const, error: "This product is no longer available" };
+  if (product.stock <= 0) return { ok: false as const, error: "This item is sold out" };
+  const before = getCart().find((c) => c.productId === productId)?.quantity ?? 0;
+  const next = addToCartList(getCart(), productId, quantity, product.stock);
+  setCart(next);
+  const now = next.find((c) => c.productId === productId)?.quantity ?? 0;
+  return { ok: true as const, quantity: now, capped: now < before + quantity };
+}
+
+export function setCartQuantity(productId: string, quantity: number) {
+  const cart = getCart();
+  if (quantity <= 0) setCart(cart.filter((c) => c.productId !== productId));
+  else setCart(cart.map((c) => (c.productId === productId ? { ...c, quantity: Math.floor(quantity) } : c)));
+}
+
+export function removeFromCart(productId: string) {
+  setCart(getCart().filter((c) => c.productId !== productId));
+}
+
+export function clearCart() {
+  setCart([]);
+}
+
+/** One checkout for the whole cart: every item becomes a Pending order for its own seller. All or nothing. */
+export function checkoutCart(input: { name: string; phone: string; note: string }) {
+  const lines = resolveCart(getCart(), getProducts(), getUsers());
+  if (lines.length === 0) return { ok: false as const, error: "Your cart is empty" };
+  const bad = lines.find((l) => l.problem);
+  if (bad) return { ok: false as const, error: `${bad.item?.name ?? "An item"}: ${bad.problem}. Fix your cart first.` };
+  for (const l of lines) {
+    const error = validateShopOrder({ stock: l.item!.stock, quantity: l.quantity, name: input.name, phone: input.phone });
+    if (error) return { ok: false as const, error };
+  }
+  const orders = lines.map((l) =>
+    createOrder({
+      ownerEmail: l.item!.ownerEmail,
+      customerName: input.name.trim(),
+      customerPhone: input.phone.trim(),
+      productId: l.productId,
+      quantity: l.quantity,
+      total: l.subtotal,
+      status: "Pending",
+      note: input.note.trim() || undefined,
+      source: "shop",
+    }),
+  );
+  setCart([]);
+  return { ok: true as const, orders, lines };
+}
+
+// ---------- Seller shop controls ----------
+export function setProductHidden(id: string, hidden: boolean) {
+  setProducts(getProducts().map((p) => (p.id === id ? { ...p, hidden } : p)));
+}
+
+export function updateShopSettings(email: string, next: { shopOpen?: boolean; shopBio?: string }) {
+  setUsers(getUsers().map((u) => (u.email === email ? { ...u, ...next } : u)));
 }

@@ -16,12 +16,14 @@ import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedMarketingRouteImport } from './routes/_authenticated/marketing'
+import { Route as AuthenticatedMyShopRouteImport } from './routes/_authenticated/my-shop'
 import { Route as AuthenticatedOrdersRouteImport } from './routes/_authenticated/orders'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as ShopIndexRouteImport } from './routes/shop/index'
 import { Route as ShopProductIdRouteImport } from './routes/shop/$productId'
+import { Route as ShopCartRouteImport } from './routes/shop/cart'
 import { Route as ShopStoreVendorRouteImport } from './routes/shop/store.$vendor'
 
 const IndexRoute = IndexRouteImport.update({
@@ -58,6 +60,11 @@ const AuthenticatedMarketingRoute = AuthenticatedMarketingRouteImport.update({
   path: '/marketing',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedMyShopRoute = AuthenticatedMyShopRouteImport.update({
+  id: '/my-shop',
+  path: '/my-shop',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedOrdersRoute = AuthenticatedOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -88,6 +95,11 @@ const ShopProductIdRoute = ShopProductIdRouteImport.update({
   path: '/shop/$productId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShopCartRoute = ShopCartRouteImport.update({
+  id: '/shop/cart',
+  path: '/shop/cart',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShopStoreVendorRoute = ShopStoreVendorRouteImport.update({
   id: '/shop/store/$vendor',
   path: '/shop/store/$vendor',
@@ -101,11 +113,13 @@ export interface FileRoutesByFullPath {
   '/customers': typeof AuthenticatedCustomersRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/marketing': typeof AuthenticatedMarketingRoute
+  '/my-shop': typeof AuthenticatedMyShopRoute
   '/orders': typeof AuthenticatedOrdersRoute
   '/products': typeof AuthenticatedProductsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/users': typeof AuthenticatedUsersRoute
   '/shop/$productId': typeof ShopProductIdRoute
+  '/shop/cart': typeof ShopCartRoute
   '/shop/': typeof ShopIndexRoute
   '/shop/store/$vendor': typeof ShopStoreVendorRoute
 }
@@ -116,11 +130,13 @@ export interface FileRoutesByTo {
   '/customers': typeof AuthenticatedCustomersRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/marketing': typeof AuthenticatedMarketingRoute
+  '/my-shop': typeof AuthenticatedMyShopRoute
   '/orders': typeof AuthenticatedOrdersRoute
   '/products': typeof AuthenticatedProductsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/users': typeof AuthenticatedUsersRoute
   '/shop/$productId': typeof ShopProductIdRoute
+  '/shop/cart': typeof ShopCartRoute
   '/shop': typeof ShopIndexRoute
   '/shop/store/$vendor': typeof ShopStoreVendorRoute
 }
@@ -133,11 +149,13 @@ export interface FileRoutesById {
   '/_authenticated/customers': typeof AuthenticatedCustomersRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/marketing': typeof AuthenticatedMarketingRoute
+  '/_authenticated/my-shop': typeof AuthenticatedMyShopRoute
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/shop/$productId': typeof ShopProductIdRoute
+  '/shop/cart': typeof ShopCartRoute
   '/shop/': typeof ShopIndexRoute
   '/shop/store/$vendor': typeof ShopStoreVendorRoute
 }
@@ -150,11 +168,13 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/marketing'
+    | '/my-shop'
     | '/orders'
     | '/products'
     | '/settings'
     | '/users'
     | '/shop/$productId'
+    | '/shop/cart'
     | '/shop/'
     | '/shop/store/$vendor'
   fileRoutesByTo: FileRoutesByTo
@@ -165,11 +185,13 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/marketing'
+    | '/my-shop'
     | '/orders'
     | '/products'
     | '/settings'
     | '/users'
     | '/shop/$productId'
+    | '/shop/cart'
     | '/shop'
     | '/shop/store/$vendor'
   id:
@@ -181,11 +203,13 @@ export interface FileRouteTypes {
     | '/_authenticated/customers'
     | '/_authenticated/dashboard'
     | '/_authenticated/marketing'
+    | '/_authenticated/my-shop'
     | '/_authenticated/orders'
     | '/_authenticated/products'
     | '/_authenticated/settings'
     | '/_authenticated/users'
     | '/shop/$productId'
+    | '/shop/cart'
     | '/shop/'
     | '/shop/store/$vendor'
   fileRoutesById: FileRoutesById
@@ -194,6 +218,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   ShopProductIdRoute: typeof ShopProductIdRoute
+  ShopCartRoute: typeof ShopCartRoute
   ShopIndexRoute: typeof ShopIndexRoute
   ShopStoreVendorRoute: typeof ShopStoreVendorRoute
 }
@@ -249,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMarketingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/my-shop': {
+      id: '/_authenticated/my-shop'
+      path: '/my-shop'
+      fullPath: '/my-shop'
+      preLoaderRoute: typeof AuthenticatedMyShopRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/orders': {
       id: '/_authenticated/orders'
       path: '/orders'
@@ -291,6 +323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shop/cart': {
+      id: '/shop/cart'
+      path: '/shop/cart'
+      fullPath: '/shop/cart'
+      preLoaderRoute: typeof ShopCartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shop/store/$vendor': {
       id: '/shop/store/$vendor'
       path: '/shop/store/$vendor'
@@ -307,6 +346,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedMarketingRoute: typeof AuthenticatedMarketingRoute
+  AuthenticatedMyShopRoute: typeof AuthenticatedMyShopRoute
   AuthenticatedOrdersRoute: typeof AuthenticatedOrdersRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -319,6 +359,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedMarketingRoute: AuthenticatedMarketingRoute,
+  AuthenticatedMyShopRoute: AuthenticatedMyShopRoute,
   AuthenticatedOrdersRoute: AuthenticatedOrdersRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
@@ -333,6 +374,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   ShopProductIdRoute: ShopProductIdRoute,
+  ShopCartRoute: ShopCartRoute,
   ShopIndexRoute: ShopIndexRoute,
   ShopStoreVendorRoute: ShopStoreVendorRoute,
 }

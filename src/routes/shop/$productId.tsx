@@ -1,16 +1,13 @@
-import { useMemo, useState, type FormEvent } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, Minus, MessageCircle, Plus, ShoppingBag, Store, Wallet } from "lucide-react";
+import { useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, MessageCircle, Minus, Plus, ShoppingCart, Store, Wallet, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { ProductImage, StockBadge } from "@/components/ebh/ui-bits";
-import { ShopCard, ShopLayout, useHydrated, useShopData } from "@/components/ebh/shop";
+import { ShopCard, ShopLayout, useCart, useHydrated, useShopData } from "@/components/ebh/shop";
 import { formatNaira, shopListing, toWhatsAppNumber } from "@/lib/business";
-import { placeShopOrder } from "@/lib/actions";
-import type { Order } from "@/lib/storage";
+import { addToCart } from "@/lib/actions";
 
 export const Route = createFileRoute("/shop/$productId")({
   head: () => ({
@@ -38,11 +35,10 @@ function ProductView({ productId }: { productId: string }) {
   const item = all.find((p) => p.id === productId);
   const more = item ? all.filter((p) => p.id !== item.id && p.vendor.slug === item.vendor.slug).slice(0, 4) : [];
 
+  const cart = useCart();
+  const navigate = useNavigate();
   const [qty, setQty] = useState(1);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [note, setNote] = useState("");
-  const [placed, setPlaced] = useState<Order | null>(null);
+  const inCart = cart.find((c) => c.productId === productId)?.quantity ?? 0;
 
   if (!hydrated) {
     return (
@@ -73,22 +69,20 @@ function ProductView({ productId }: { productId: string }) {
   }
 
   const soldOut = item.stock <= 0;
+  const canAdd = Math.max(0, item.stock - inCart);
   const total = item.price * qty;
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const res = placeShopOrder({ productId: item.id, quantity: qty, name, phone, note });
+  const add = (goToCart: boolean) => {
+    const res = addToCart(item.id, qty);
     if (!res.ok) {
       toast.error(res.error);
       return;
     }
-    setPlaced(res.order);
-    toast.success("Order sent to the seller");
+    if (res.capped) toast.info(`Only ${item.stock} in stock — your cart has ${res.quantity}`);
+    else if (!goToCart) toast.success(`Added to cart (${res.quantity})`, { action: { label: "View cart", onClick: () => navigate({ to: "/shop/cart" }) } });
+    setQty(1);
+    if (goToCart) navigate({ to: "/shop/cart" });
   };
-
-  const waText = placed
-    ? `Hello ${item.vendor.business}, I just ordered ${placed.productName} x${placed.quantity} (${formatNaira(placed.total)}) on Eminent Business Hub. My name is ${placed.customerName}, phone ${placed.customerPhone}.${placed.note ? ` Delivery: ${placed.note}` : ""}`
-    : "";
 
   return (
     <ShopLayout>
@@ -116,35 +110,16 @@ function ProductView({ productId }: { productId: string }) {
             </span>
           </Link>
 
-          {placed ? (
-            <div className="mt-5 rounded-2xl border border-success/30 bg-success-soft p-5">
-              <div className="flex items-center gap-2 font-bold text-success">
-                <CheckCircle2 className="h-5 w-5" /> Order sent!
-              </div>
-              <p className="mt-2 text-sm">
-                {item.vendor.business} has your order for <b>{placed.productName} × {placed.quantity}</b> ({formatNaira(placed.total)}).
-                They will contact you on <b>{placed.customerPhone}</b> to confirm payment and delivery.
-              </p>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                {item.vendor.phone ? (
-                  <Button asChild className="bg-gold text-navy hover:bg-gold/90">
-                    <a href={`https://wa.me/${toWhatsAppNumber(item.vendor.phone)}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer">
-                      <MessageCircle className="h-4 w-4" /> Message seller on WhatsApp
-                    </a>
-                  </Button>
-                ) : null}
-                <Button asChild variant="outline">
-                  <Link to="/shop">Continue shopping</Link>
-                </Button>
-              </div>
-            </div>
-          ) : soldOut ? (
+          {item.description ? (
+            <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-foreground/85">{item.description}</p>
+          ) : null}
+
+          {soldOut ? (
             <div className="mt-5 rounded-2xl border bg-secondary p-5 text-sm">
               <b>Sold out.</b> Check back soon or see other products from this seller.
             </div>
           ) : (
-            <form onSubmit={submit} className="mt-5 space-y-3 rounded-2xl border bg-card p-4 shadow-card">
-              <h2 className="flex items-center gap-2 font-bold"><ShoppingBag className="h-4 w-4 text-navy" /> Buy this item</h2>
+            <div className="mt-5 space-y-3 rounded-2xl border bg-card p-4 shadow-card">
               <div className="flex items-center justify-between gap-3">
                 <Label>Quantity</Label>
                 <div className="flex items-center gap-2">
@@ -152,32 +127,43 @@ function ProductView({ productId }: { productId: string }) {
                     <Minus className="h-4 w-4" />
                   </Button>
                   <span className="w-8 text-center font-bold" aria-label="Quantity">{qty}</span>
-                  <Button type="button" size="icon" variant="outline" aria-label="More" onClick={() => setQty((n) => Math.min(item.stock, n + 1))}>
+                  <Button type="button" size="icon" variant="outline" aria-label="More" onClick={() => setQty((n) => Math.min(Math.max(1, canAdd), n + 1))}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="b-name">Your name</Label>
-                <Input id="b-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
+              {inCart ? (
+                <Link to="/shop/cart" className="block rounded-xl bg-secondary px-3 py-2 text-xs font-semibold text-navy">
+                  {inCart} already in your cart — view cart
+                </Link>
+              ) : null}
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" className="h-12 border-navy text-navy" disabled={canAdd <= 0} onClick={() => add(false)}>
+                  <ShoppingCart className="h-4 w-4" /> Add to cart
+                </Button>
+                <Button type="button" className="h-12 bg-gold font-bold text-navy hover:bg-gold/90" disabled={canAdd <= 0 && inCart <= 0} onClick={() => (canAdd > 0 ? add(true) : navigate({ to: "/shop/cart" }))}>
+                  <Zap className="h-4 w-4" /> Buy now
+                </Button>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="b-phone">Phone / WhatsApp number</Label>
-                <Input id="b-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0803 123 4567" autoComplete="tel" required />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="b-note">Delivery address or message (optional)</Label>
-                <Textarea id="b-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Rumuola, Port Harcourt" />
-              </div>
+              <div className="text-center text-xs text-muted-foreground">Total for {qty}: <b className="text-navy">{formatNaira(total)}</b></div>
               <div className="flex items-start gap-2 rounded-xl bg-gold-soft p-3 text-xs text-navy">
                 <Wallet className="mt-0.5 h-4 w-4 shrink-0" />
                 No payment now. The seller will contact you to arrange transfer or pay-on-delivery. Online card payment is coming soon.
               </div>
-              <Button type="submit" className="h-12 w-full bg-gold text-base font-bold text-navy hover:bg-gold/90">
-                Place order • {formatNaira(total)}
-              </Button>
-            </form>
+            </div>
           )}
+
+          {item.vendor.phone ? (
+            <Button asChild variant="ghost" className="mt-3 w-full text-navy">
+              <a
+                href={`https://wa.me/${toWhatsAppNumber(item.vendor.phone)}?text=${encodeURIComponent(`Hello ${item.vendor.business}, I'm interested in ${item.name} (${formatNaira(item.price)}) on Eminent Business Hub.`)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <MessageCircle className="h-4 w-4" /> Ask the seller on WhatsApp
+              </a>
+            </Button>
+          ) : null}
         </div>
       </div>
 

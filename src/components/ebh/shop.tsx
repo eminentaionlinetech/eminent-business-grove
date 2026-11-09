@@ -1,11 +1,11 @@
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, Search, Store } from "lucide-react";
+import { LayoutDashboard, Search, ShoppingCart, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCollection, useSession } from "@/hooks/use-store";
-import { CATEGORIES, formatNaira, shopListing, type ShopItem } from "@/lib/business";
-import { KEYS, type AppUser, type Product } from "@/lib/storage";
+import { CATEGORIES, cartCount, formatNaira, shopListing, type ShopItem } from "@/lib/business";
+import { KEYS, type AppUser, type CartItem, type Product } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { Logo } from "./Logo";
 import { ProductImage } from "./ui-bits";
@@ -22,6 +22,29 @@ export function useShopData() {
   return { products, users };
 }
 
+export function useCart() {
+  return useCollection<CartItem>(KEYS.cart);
+}
+
+function CartButton() {
+  const hydrated = useHydrated();
+  const count = cartCount(useCart());
+  return (
+    <Link
+      to="/shop/cart"
+      aria-label={hydrated && count ? `Cart, ${count} items` : "Cart"}
+      className="relative grid h-9 w-9 place-items-center rounded-full bg-sidebar-accent text-sidebar-foreground"
+    >
+      <ShoppingCart className="h-5 w-5" />
+      {hydrated && count ? (
+        <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-gold px-1 text-[0.65rem] font-bold text-navy">
+          {count > 99 ? "99+" : count}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
 export function ShopLayout({ children }: { children: ReactNode }) {
   const session = useSession();
   return (
@@ -31,6 +54,8 @@ export function ShopLayout({ children }: { children: ReactNode }) {
           <Link to="/shop" aria-label="Eminent Business Hub shop home">
             <Logo size="sm" />
           </Link>
+          <div className="flex items-center gap-2">
+          <CartButton />
           {session ? (
             <Button asChild size="sm" className="bg-gold text-navy hover:bg-gold/90">
               <Link to={session.role === "admin" ? "/admin" : "/dashboard"}>
@@ -44,6 +69,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
               </Link>
             </Button>
           ) : null}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-5 md:pt-8">{children}</main>

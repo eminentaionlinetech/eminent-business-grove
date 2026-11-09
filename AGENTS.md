@@ -36,3 +36,5 @@ use the editor.
 - Welcome emails go through EmailJS in the browser; keys are entered by the admin in Settings, never committed.
 - The public shop lives under `src/routes/shop/` (outside the signed-in area) and only shows vendor business name and phone, never emails or passwords — shoppers are anonymous.
 - Product photos uploaded from a phone are shrunk to small JPEG data and stored on the product itself — keeps everything on-device.
+- The shopper's cart is saved on the shopper's phone (`ebh_cart`); checkout turns each cart line into its own Pending order for that line's seller, all-or-nothing — orders stay one product each so stock and revenue rules keep working.
+- Sellers control their public store with `shopOpen`/`shopBio` on their user and `hidden` on each product; `shopListing` is the single filter every shop page and order action goes through.

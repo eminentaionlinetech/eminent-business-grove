@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CATEGORIES, DEFAULT_CATEGORY, formatNaira } from "@/lib/business";
 import { createOrder, saveCustomer, saveProduct } from "@/lib/actions";
@@ -30,6 +32,8 @@ export function ProductDialog({
   const [stock, setStock] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORY);
+  const [description, setDescription] = useState("");
+  const [showInShop, setShowInShop] = useState(true);
   const [processing, setProcessing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const isUpload = imageUrl.startsWith("data:");
@@ -54,6 +58,8 @@ export function ProductDialog({
     setStock(product ? String(product.stock) : "");
     setImageUrl(product?.imageUrl ?? "");
     setCategory(product?.category ?? DEFAULT_CATEGORY);
+    setDescription(product?.description ?? "");
+    setShowInShop(!product?.hidden);
   }, [open, product]);
 
   const submit = (e: FormEvent) => {
@@ -72,6 +78,8 @@ export function ProductDialog({
         stock: s,
         imageUrl: imageUrl.trim(),
         category,
+        description: description.trim() || undefined,
+        hidden: !showInShop,
       });
     } catch {
       toast.error("Your phone's storage for this app is full. Remove some photos or use a photo link.");
@@ -150,6 +158,23 @@ export function ProductDialog({
               placeholder={isUpload ? "Photo added from your phone" : "Or paste a photo link (https://…)"}
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="p-desc">Description (optional)</Label>
+            <Textarea
+              id="p-desc"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Size, colour, material, delivery info…"
+            />
+          </div>
+          <label htmlFor="p-show" className="flex items-center justify-between gap-3 rounded-xl border p-3">
+            <span>
+              <span className="block text-sm font-semibold">Show in public shop</span>
+              <span className="text-xs text-muted-foreground">Turn off to keep it private</span>
+            </span>
+            <Switch id="p-show" checked={showInShop} onCheckedChange={setShowInShop} />
+          </label>
           <DialogFooter>
             <Button type="submit" className={goldBtn}>
               {product ? "Save changes" : "Add product"}

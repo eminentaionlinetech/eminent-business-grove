@@ -1,5 +1,5 @@
 // Pure business rules: revenue, stock, analytics. No browser access here.
-import type { Customer, Order, OrderStatus, Product } from "./storage";
+import type { CartItem, Customer, Order, OrderStatus, Product } from "./storage";
 
 export const LOW_STOCK_LIMIT = 5;
 
@@ -137,7 +137,8 @@ export const CATEGORIES: string[] = [
 ];
 
 // ---------- Public shop ----------
-export type ShopVendor = { email: string; slug: string; business: string; phone: string };
+export type ShopVendor = { email: string; slug: string; business: string; phone: string; open: boolean; bio: string };
+type VendorUser = { email: string; business: string; phone: string; shopOpen?: boolean | undefined; shopBio?: string | undefined };
 
 function hash4(s: string) {
   let h = 5381;
@@ -156,32 +157,89 @@ export function vendorSlug(business: string, email: string) {
 }
 
 /** Only public details of each vendor — no email shown, no password. */
-export function shopVendors(users: { email: string; business: string; phone: string }[]) {
+export function shopVendors(users: VendorUser[]) {
   const map = new Map<string, ShopVendor>();
   users.forEach((u) =>
-    map.set(u.email, { email: u.email, slug: vendorSlug(u.business, u.email), business: u.business || "EBH Seller", phone: u.phone }),
+    map.set(u.email, {
+      email: u.email,
+      slug: vendorSlug(u.business, u.email),
+      business: u.business || "EBH Seller",
+      phone: u.phone,
+      open: u.shopOpen !== false,
+      bio: (u.shopBio ?? "").trim(),
+    }),
   );
   return map;
 }
 
 export type ShopItem = Product & { vendor: ShopVendor };
 
-/** Products shown in the public shop: only from existing vendors, in-stock first, newest first. */
+/**
+ * Products shown in the public shop: only from existing vendors whose shop is open,
+ * never products the seller hid. In-stock first, newest first.
+ */
 export function shopListing(
   products: Product[],
-  users: { email: string; business: string; phone: string }[],
+  users: VendorUser[],
   filter: { q?: string | undefined; category?: string | undefined; vendorSlug?: string | undefined } = {},
 ): ShopItem[] {
   const vendors = shopVendors(users);
   const q = (filter.q ?? "").trim().toLowerCase();
   return products
     .map((p) => ({ p, vendor: vendors.get(p.ownerEmail) }))
-    .filter((x): x is { p: Product; vendor: ShopVendor } => !!x.vendor)
+    .filter((x): x is { p: Product; vendor: ShopVendor } => !!x.vendor && x.vendor.open && !x.p.hidden)
     .filter(({ p }) => !filter.category || filter.category === "All" || p.category === filter.category)
     .filter(({ vendor }) => !filter.vendorSlug || vendor.slug === filter.vendorSlug)
     .filter(({ p, vendor }) => !q || `${p.name} ${p.category} ${vendor.business}`.toLowerCase().includes(q))
     .sort((a, b) => Number(b.p.stock > 0) - Number(a.p.stock > 0) || b.p.createdAt.localeCompare(a.p.createdAt))
     .map(({ p, vendor }) => ({ ...p, vendor }));
+}
+
+// ---------- Cart ----------
+export type CartLine = { productId: string; quantity: number; item: ShopItem | null; problem: string | null; subtotal: number };
+
+/** Adds to the cart (or merges with the same product), never more than the stock left. */
+export function addToCartList(cart: CartItem[], productId: string, quantity: number, stock: number): CartItem[] {
+  const current = cart.find((c) => c.productId === productId)?.quantity ?? 0;
+  const next = Math.min(Math.max(0, stock), current + Math.max(0, Math.floor(quantity)));
+  if (next <= 0) return cart.filter((c) => c.productId !== productId);
+  if (cart.some((c) => c.productId === productId)) {
+    return cart.map((c) => (c.productId === productId ? { ...c, quantity: next } : c));
+  }
+  return [...cart, { productId, quantity: next }];
+}
+
+/** Matches cart lines to live shop products and flags anything that can no longer be bought. */
+export function resolveCart(cart: CartItem[], products: Product[], users: VendorUser[]): CartLine[] {
+  const listed = new Map(shopListing(products, users).map((p) => [p.id, p]));
+  return cart.map((c) => {
+    const item = listed.get(c.productId) ?? null;
+    let problem: string | null = null;
+    if (!item) problem = "No longer available";
+    else if (item.stock <= 0) problem = "Sold out";
+    else if (c.quantity > item.stock) problem = `Only ${item.stock} left`;
+    return { productId: c.productId, quantity: c.quantity, item, problem, subtotal: item ? item.price * c.quantity : 0 };
+  });
+}
+
+export function cartTotal(lines: CartLine[]) {
+  return lines.filter((l) => !l.problem).reduce((s, l) => s + l.subtotal, 0);
+}
+
+export function cartCount(cart: CartItem[]) {
+  return cart.reduce((s, c) => s + c.quantity, 0);
+}
+
+/** Cart lines grouped by seller, in the order they were first added. */
+export function groupBySeller(lines: CartLine[]) {
+  const groups = new Map<string, { vendor: ShopVendor; lines: CartLine[] }>();
+  lines.forEach((l) => {
+    if (!l.item) return;
+    const g = groups.get(l.item.vendor.slug) ?? { vendor: l.item.vendor, lines: [] };
+    g.lines.push(l);
+    groups.set(l.item.vendor.slug, g);
+  });
+  return [...groups.values()];
 }
 
 /** Checks a shopper's order before it is sent to the vendor. Returns an error message, or null when fine. */

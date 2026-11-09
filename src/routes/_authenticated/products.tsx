@@ -113,7 +113,10 @@ function ProductsPage() {
                 <div className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{p.category}</div>
                 <h3 className="line-clamp-2 text-sm font-bold leading-snug">{p.name}</h3>
                 <div className="font-display text-base font-bold text-navy">{formatNaira(p.price)}</div>
-                <StockBadge stock={p.stock} />
+                <div className="flex flex-wrap gap-1">
+                  <StockBadge stock={p.stock} />
+                  {p.hidden ? <span className="rounded-full bg-secondary px-2 py-0.5 text-[0.65rem] font-bold text-muted-foreground">Hidden from shop</span> : null}
+                </div>
                 {isAdmin ? <div className="truncate text-[0.65rem] text-muted-foreground">{p.ownerEmail}</div> : null}
                 <div className="flex gap-1 pt-1">
                   <Button

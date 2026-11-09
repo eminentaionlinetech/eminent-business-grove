@@ -52,8 +52,16 @@ function VendorStore() {
                 </a>
               </Button>
             ) : null}
+            {vendor?.bio ? <p className="w-full whitespace-pre-line text-sm text-foreground/85">{vendor.bio}</p> : null}
           </section>
-          <ShopBrowser vendorSlug={slug} />
+          {vendor && !vendor.open ? (
+            <div className="rounded-2xl border bg-card p-8 text-center">
+              <h2 className="text-lg font-bold">This shop is closed for now</h2>
+              <p className="mt-1 text-sm text-muted-foreground">The seller has paused orders. Check back soon or message them on WhatsApp.</p>
+            </div>
+          ) : (
+            <ShopBrowser vendorSlug={slug} />
+          )}
         </>
       )}
     </ShopLayout>

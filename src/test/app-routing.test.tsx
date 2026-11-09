@@ -21,6 +21,7 @@ describe("Shop routing", () => {
     const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
     expect(router.matchRoutes("/shop").at(-1)?.routeId).toBe("/shop/");
     expect(router.matchRoutes("/shop/p1").at(-1)?.routeId).toBe("/shop/$productId");
+    expect(router.matchRoutes("/shop/cart").at(-1)?.routeId).toBe("/shop/cart");
     expect(router.matchRoutes("/shop/store/ada-x1").at(-1)?.routeId).toBe("/shop/store/$vendor");
   });
 });

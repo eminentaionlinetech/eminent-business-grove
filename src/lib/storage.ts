@@ -10,6 +10,10 @@ export type AppUser = {
   passwordHash: string;
   role: Role;
   createdAt: string;
+  /** false = seller paused their public shop. Missing = open. */
+  shopOpen?: boolean | undefined;
+  /** Short "about my shop" text shown on the seller's store page. */
+  shopBio?: string | undefined;
 };
 
 export type Product = {
@@ -21,7 +25,14 @@ export type Product = {
   imageUrl: string;
   category: string;
   createdAt: string;
+  /** Shown on the product page in the public shop. */
+  description?: string | undefined;
+  /** true = seller hid it from the public shop. */
+  hidden?: boolean | undefined;
 };
+
+/** A shopper's cart line, saved on the shopper's phone. */
+export type CartItem = { productId: string; quantity: number };
 
 export type OrderStatus = "Pending" | "Completed" | "Cancelled";
 
@@ -74,6 +85,7 @@ export const KEYS = {
   customers: "ebh_customers",
   emailLogs: "ebh_email_logs",
   emailjs: "ebh_emailjs_config",
+  cart: "ebh_cart",
   // session keys
   email: "ebh_email",
   business: "ebh_business",
@@ -134,6 +146,8 @@ export const getCustomers = () => readJson<Customer[]>(KEYS.customers, []);
 export const setCustomers = (v: Customer[]) => writeJson(KEYS.customers, v);
 export const getEmailLogs = () => readJson<EmailLog[]>(KEYS.emailLogs, []);
 export const setEmailLogs = (v: EmailLog[]) => writeJson(KEYS.emailLogs, v);
+export const getCart = () => readJson<CartItem[]>(KEYS.cart, []);
+export const setCart = (v: CartItem[]) => writeJson(KEYS.cart, v);
 
 export function addEmailLog(log: Omit<EmailLog, "id" | "createdAt">) {
   const logs = getEmailLogs();
