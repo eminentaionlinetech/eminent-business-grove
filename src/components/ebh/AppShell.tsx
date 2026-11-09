@@ -13,7 +13,7 @@ import {
   Users,
   ShieldCheck,
   Store,
-  Storefront,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { logout, type Session } from "@/lib/auth";
@@ -30,7 +30,7 @@ function navFor(isAdmin: boolean): NavItem[] {
       { to: "/users", label: "Customers / Users", short: "Users", icon: Users },
       { to: "/marketing", label: "Marketing Studio", short: "Marketing", icon: Megaphone },
       { to: "/analytics", label: "Analytics", short: "Analytics", icon: BarChart3 },
-      { to: "/my-shop", label: "My Shop", short: "My Shop", icon: Storefront },
+      { to: "/my-shop", label: "My Shop", short: "My Shop", icon: SlidersHorizontal },
       { to: "/shop", label: "Public Shop", short: "Shop", icon: Store },
       { to: "/settings", label: "Settings", short: "Settings", icon: Settings },
     ];
@@ -42,7 +42,7 @@ function navFor(isAdmin: boolean): NavItem[] {
     { to: "/customers", label: "Customers", short: "Customers", icon: Users },
     { to: "/marketing", label: "My Marketing", short: "Marketing", icon: Megaphone },
     { to: "/analytics", label: "Analytics", short: "Analytics", icon: BarChart3 },
-    { to: "/my-shop", label: "My Shop", short: "My Shop", icon: Storefront },
+    { to: "/my-shop", label: "My Shop", short: "My Shop", icon: SlidersHorizontal },
     { to: "/shop", label: "Public Shop", short: "Shop", icon: Store },
     { to: "/settings", label: "Settings", short: "Settings", icon: Settings },
   ];
