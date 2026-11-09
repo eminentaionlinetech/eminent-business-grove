@@ -126,7 +126,8 @@ describe("public shop", () => {
 
   it("a shop order goes to the seller as Pending and takes the stock", async () => {
     const { placeShopOrder } = await import("@/lib/actions");
-    const { getOrders, getProducts, setProducts } = await import("@/lib/storage");
+    const { getOrders, getProducts, setProducts, setUsers } = await import("@/lib/storage");
+    setUsers([{ ...vendor, passwordHash: "x", role: "user", createdAt: "2026-11-01T00:00:00.000Z" }]);
     setProducts([product()]);
     const res = placeShopOrder({ productId: "p1", quantity: 2, name: "Chika", phone: "08031234567", note: "Rumuola" });
     expect(res.ok).toBe(true);
@@ -144,5 +145,71 @@ describe("public shop", () => {
     const { toWhatsAppNumber } = await import("@/lib/business");
     expect(toWhatsAppNumber("0803 123 4567")).toBe("2348031234567");
     expect(toWhatsAppNumber("+234 803 123 4567")).toBe("2348031234567");
+  });
+});
+
+describe("cart and seller shop controls", () => {
+  const vendorA = { email: "ada@gmail.com", business: "Ada Fabrics", phone: "08031234567" };
+  const vendorB = { email: "emeka@gmail.com", business: "Emeka Gadgets", phone: "08061234567" };
+  const product = (over: Partial<import("@/lib/storage").Product> = {}) => ({
+    id: "p1", ownerEmail: vendorA.email, name: "Ankara Dress", price: 18500, stock: 3,
+    imageUrl: "", category: "Fashion", createdAt: "2026-11-01T00:00:00.000Z", ...over,
+  });
+  const asUser = (u: typeof vendorA, over: Partial<import("@/lib/storage").AppUser> = {}) => ({
+    ...u, passwordHash: "x", role: "user" as const, createdAt: "2026-11-01T00:00:00.000Z", ...over,
+  });
+
+  it("hidden products and closed shops do not appear in the public shop", async () => {
+    const { shopListing } = await import("@/lib/business");
+    const items = [product(), product({ id: "p2", hidden: true }), product({ id: "p3", ownerEmail: vendorB.email })];
+    expect(shopListing(items, [vendorA, vendorB]).map((p) => p.id).sort()).toEqual(["p1", "p3"]);
+    expect(shopListing(items, [vendorA, { ...vendorB, shopOpen: false }]).map((p) => p.id)).toEqual(["p1"]);
+  });
+
+  it("adding to cart merges the same product and never goes above stock", async () => {
+    const { addToCartList } = await import("@/lib/business");
+    let cart = addToCartList([], "p1", 2, 3);
+    expect(cart).toEqual([{ productId: "p1", quantity: 2 }]);
+    cart = addToCartList(cart, "p1", 5, 3);
+    expect(cart).toEqual([{ productId: "p1", quantity: 3 }]);
+  });
+
+  it("checkout sends one Pending order per item to the right seller and empties the cart", async () => {
+    const { addToCart, checkoutCart } = await import("@/lib/actions");
+    const { getCart, getOrders, getProducts, setProducts, setUsers } = await import("@/lib/storage");
+    setUsers([asUser(vendorA), asUser(vendorB)]);
+    setProducts([product(), product({ id: "p3", ownerEmail: vendorB.email, name: "Power Bank", price: 9000, stock: 5 })]);
+    addToCart("p1", 2);
+    addToCart("p3", 1);
+    const res = checkoutCart({ name: "Chika", phone: "08031234567", note: "Rumuola" });
+    expect(res.ok).toBe(true);
+    const orders = getOrders();
+    expect(orders).toHaveLength(2);
+    expect(orders.find((o) => o.productId === "p1")).toMatchObject({ ownerEmail: vendorA.email, total: 37000, status: "Pending", source: "shop" });
+    expect(orders.find((o) => o.productId === "p3")).toMatchObject({ ownerEmail: vendorB.email, total: 9000, status: "Pending" });
+    expect(getProducts().find((p) => p.id === "p1")?.stock).toBe(1);
+    expect(getCart()).toEqual([]);
+  });
+
+  it("checkout places nothing when any cart item is over stock or hidden", async () => {
+    const { checkoutCart } = await import("@/lib/actions");
+    const { getOrders, setCart, setProducts, setUsers } = await import("@/lib/storage");
+    setUsers([asUser(vendorA)]);
+    setProducts([product(), product({ id: "p2", stock: 10 })]);
+    setCart([{ productId: "p2", quantity: 1 }, { productId: "p1", quantity: 4 }]);
+    expect(checkoutCart({ name: "Chika", phone: "08031234567", note: "" }).ok).toBe(false);
+    setProducts([product(), product({ id: "p2", stock: 10, hidden: true })]);
+    setCart([{ productId: "p1", quantity: 1 }, { productId: "p2", quantity: 1 }]);
+    expect(checkoutCart({ name: "Chika", phone: "08031234567", note: "" }).ok).toBe(false);
+    expect(getOrders()).toHaveLength(0);
+  });
+
+  it("a closed shop cannot take orders", async () => {
+    const { placeShopOrder, addToCart } = await import("@/lib/actions");
+    const { setProducts, setUsers } = await import("@/lib/storage");
+    setUsers([asUser(vendorA, { shopOpen: false })]);
+    setProducts([product()]);
+    expect(addToCart("p1", 1).ok).toBe(false);
+    expect(placeShopOrder({ productId: "p1", quantity: 1, name: "Chika", phone: "08031234567", note: "" }).ok).toBe(false);
   });
 });
