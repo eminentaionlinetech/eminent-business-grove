@@ -12,7 +12,7 @@
 - [x] Original logo — uploaded logo on sign-in/loading screen, cropped symbol in menus, browser tab icon
 - [x] Password recovery — sign-up email + sign-up phone, then new password and auto sign-in
 - [x] Public shop — browse by category, seller stores, product photos, order form that sends Pending orders to the seller
-- [ ] Product pages with description + Add to cart / Buy now
-- [ ] Shopping cart with one checkout for many sellers
-- [ ] Seller "My Shop" controls: open/close shop, about text, show/hide products, share link
+- [x] Product pages with description + Add to cart / Buy now
+- [x] Shopping cart with one checkout for many sellers
+- [x] Seller "My Shop" controls: open/close shop, about text, show/hide products, share link
 - [ ] EmailJS keys — waiting on the user (enter in Settings as admin)
