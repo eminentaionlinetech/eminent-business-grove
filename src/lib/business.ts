@@ -258,3 +258,34 @@ export function toWhatsAppNumber(phone: string) {
   if (digits.startsWith("0")) return `234${digits.slice(1)}`;
   return digits;
 }
+
+// ---------- Paystack payments ----------
+/** Paystack's smallest online payment is ₦50. */
+export const MIN_ONLINE_PAYMENT = 50;
+
+/** Naira to kobo (Paystack works in kobo). */
+export function toKobo(naira: number) {
+  return Math.round(naira * 100);
+}
+
+/** A payment only counts when Paystack says "success" for the exact amount in naira. */
+export function paymentMatches(expectedNaira: number, paid: { status: string; amountKobo: number; currency: string }) {
+  return paid.status === "success" && paid.currency === "NGN" && paid.amountKobo === toKobo(expectedNaira);
+}
+
+export function validateEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? null : "Enter a valid email for your Paystack receipt";
+}
+
+// ---------- Old example products ----------
+// Earlier versions offered "Load examples". These were not real items, so they are removed from every device.
+const SAMPLE_PHOTOS = [
+  "photo-1595777457583-95e059d581b8",
+  "photo-1601049541289-9b1b7bbbfe19",
+  "photo-1584917865442-de89df76afd3",
+];
+const SAMPLE_NAMES = ["Ankara Wrap Dress", "Shea Butter Glow Cream", "Leather Tote Bag"];
+
+export function isSampleProduct(p: Pick<Product, "name" | "imageUrl">) {
+  return SAMPLE_NAMES.includes(p.name) && SAMPLE_PHOTOS.some((id) => p.imageUrl.includes(id));
+}
