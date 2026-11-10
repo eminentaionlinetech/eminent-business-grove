@@ -127,13 +127,13 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
-  // Expose logout for console use. It only clears ebh_is_logged_in and ebh_role,
-  // so email, business, phone and password stay remembered for the next sign-in.
   // Old example products were not real items — clear them from this device.
   useEffect(() => {
     removeSampleProducts();
   }, []);
 
+  // Expose logout for console use. It only clears ebh_is_logged_in and ebh_role,
+  // so email, business, phone and password stay remembered for the next sign-in.
   useEffect(() => {
     const w = window as unknown as Record<string, unknown>;
     const originalLogout = (w["logout"] || w["handleLogout"]) as ((...a: unknown[]) => unknown) | undefined;

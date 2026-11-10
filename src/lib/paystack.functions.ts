@@ -12,7 +12,7 @@ export const getPaystackStatus = createServerFn({ method: "GET" }).handler(async
 
 /** Starts a Paystack payment into the owner's account and returns the Paystack payment page link. */
 export const startPaystackPayment = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         email: z.string().trim().email().max(200),
@@ -49,7 +49,7 @@ export const startPaystackPayment = createServerFn({ method: "POST" })
 
 /** Asks Paystack whether a payment really went through. */
 export const verifyPaystackPayment = createServerFn({ method: "POST" })
-  .inputValidator((input) => z.object({ reference: referenceSchema }).parse(input))
+  .validator((input) => z.object({ reference: referenceSchema }).parse(input))
   .handler(async ({ data }) => {
     const res = await paystackFetch<{ status: string; amount: number; currency: string; paid_at: string | null; reference: string }>(
       `/transaction/verify/${encodeURIComponent(data.reference)}`,

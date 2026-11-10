@@ -11,15 +11,16 @@ export async function paystackFetch<T>(path: string, init?: { method?: "GET" | "
   if (!lovableKey || !paystackKey) {
     return { ok: false as const, status: 503, error: "Paystack is not connected yet" };
   }
-  const res = await fetch(`${GATEWAY_URL}${path}`, {
+  const request: RequestInit = {
     method: init?.method ?? "GET",
     headers: {
       Authorization: `Bearer ${lovableKey}`,
       "X-Connection-Api-Key": paystackKey,
       "Content-Type": "application/json",
     },
-    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-  });
+  };
+  if (init?.body !== undefined) request.body = JSON.stringify(init.body);
+  const res = await fetch(`${GATEWAY_URL}${path}`, request);
   const text = await res.text();
   let json: { status?: boolean; message?: string; data?: T } = {};
   try {
