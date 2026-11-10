@@ -51,6 +51,22 @@ export type Order = {
   note?: string | undefined;
   /** "shop" when a shopper placed it from the public shop. */
   source?: "shop" | "manual" | undefined;
+  /** "paid" once Paystack confirmed the payment; "unpaid" = pay later or not finished. */
+  paymentStatus?: "paid" | "unpaid" | undefined;
+  /** Paystack reference for this order's payment. */
+  paymentRef?: string | undefined;
+};
+
+/** A Paystack payment the shopper started on this phone, waiting to be checked. */
+export type PendingPayment = {
+  reference: string;
+  orderIds: string[];
+  amount: number;
+  email: string;
+  name: string;
+  phone: string;
+  items: string;
+  createdAt: string;
 };
 
 export type Customer = {
@@ -86,6 +102,7 @@ export const KEYS = {
   emailLogs: "ebh_email_logs",
   emailjs: "ebh_emailjs_config",
   cart: "ebh_cart",
+  pendingPayment: "ebh_pending_payment",
   // session keys
   email: "ebh_email",
   business: "ebh_business",
@@ -148,6 +165,14 @@ export const getEmailLogs = () => readJson<EmailLog[]>(KEYS.emailLogs, []);
 export const setEmailLogs = (v: EmailLog[]) => writeJson(KEYS.emailLogs, v);
 export const getCart = () => readJson<CartItem[]>(KEYS.cart, []);
 export const setCart = (v: CartItem[]) => writeJson(KEYS.cart, v);
+export const getPendingPayment = () => readJson<PendingPayment | null>(KEYS.pendingPayment, null);
+export function setPendingPayment(v: PendingPayment | null) {
+  if (v) writeJson(KEYS.pendingPayment, v);
+  else {
+    localStorage.removeItem(KEYS.pendingPayment);
+    notify();
+  }
+}
 
 export function addEmailLog(log: Omit<EmailLog, "id" | "createdAt">) {
   const logs = getEmailLogs();

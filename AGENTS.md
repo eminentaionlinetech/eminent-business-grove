@@ -30,7 +30,7 @@ use the editor.
 <!-- LOVABLE:END -->
 
 ## Project rules
-- All app data lives in browser localStorage via `src/lib/storage.ts` (no backend) — the owner requires on-device storage only.
+- All app data lives in browser localStorage via `src/lib/storage.ts` (no database) — the owner requires on-device storage only. The only server code is the Paystack calls.
 - Signed-in pages live under `src/routes/_authenticated/`; the layout guards the session and renders the shared shell.
 - Pure business rules (revenue, stock, analytics) stay in `src/lib/business.ts` so they are unit-tested in `src/test/rules.test.ts`.
 - Welcome emails go through EmailJS in the browser; keys are entered by the admin in Settings, never committed.
@@ -38,3 +38,5 @@ use the editor.
 - Product photos uploaded from a phone are shrunk to small JPEG data and stored on the product itself — keeps everything on-device.
 - The shopper's cart is saved on the shopper's phone (`ebh_cart`); checkout turns each cart line into its own Pending order for that line's seller, all-or-nothing — orders stay one product each so stock and revenue rules keep working.
 - Sellers control their public store with `shopOpen`/`shopBio` on their user and `hidden` on each product; `shopListing` is the single filter every shop page and order action goes through.
+- Paystack runs only on the server (`src/lib/paystack.functions.ts` → connector gateway `udc_paystack`); the browser never sees the key, and orders turn "paid" only after `verifyPaystackPayment` confirms the exact amount (`paymentMatches`).
+- Pay-now orders are created first as unpaid with a `paymentRef`, and the attempt is kept in `ebh_pending_payment` so the `/shop/payment` return page can confirm or retry it.

@@ -24,6 +24,7 @@ import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/
 import { Route as ShopIndexRouteImport } from './routes/shop/index'
 import { Route as ShopProductIdRouteImport } from './routes/shop/$productId'
 import { Route as ShopCartRouteImport } from './routes/shop/cart'
+import { Route as ShopPaymentRouteImport } from './routes/shop/payment'
 import { Route as ShopStoreVendorRouteImport } from './routes/shop/store.$vendor'
 
 const IndexRoute = IndexRouteImport.update({
@@ -100,6 +101,11 @@ const ShopCartRoute = ShopCartRouteImport.update({
   path: '/shop/cart',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShopPaymentRoute = ShopPaymentRouteImport.update({
+  id: '/shop/payment',
+  path: '/shop/payment',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShopStoreVendorRoute = ShopStoreVendorRouteImport.update({
   id: '/shop/store/$vendor',
   path: '/shop/store/$vendor',
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof AuthenticatedUsersRoute
   '/shop/$productId': typeof ShopProductIdRoute
   '/shop/cart': typeof ShopCartRoute
+  '/shop/payment': typeof ShopPaymentRoute
   '/shop/': typeof ShopIndexRoute
   '/shop/store/$vendor': typeof ShopStoreVendorRoute
 }
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersRoute
   '/shop/$productId': typeof ShopProductIdRoute
   '/shop/cart': typeof ShopCartRoute
+  '/shop/payment': typeof ShopPaymentRoute
   '/shop': typeof ShopIndexRoute
   '/shop/store/$vendor': typeof ShopStoreVendorRoute
 }
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/shop/$productId': typeof ShopProductIdRoute
   '/shop/cart': typeof ShopCartRoute
+  '/shop/payment': typeof ShopPaymentRoute
   '/shop/': typeof ShopIndexRoute
   '/shop/store/$vendor': typeof ShopStoreVendorRoute
 }
@@ -175,6 +184,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/shop/$productId'
     | '/shop/cart'
+    | '/shop/payment'
     | '/shop/'
     | '/shop/store/$vendor'
   fileRoutesByTo: FileRoutesByTo
@@ -192,6 +202,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/shop/$productId'
     | '/shop/cart'
+    | '/shop/payment'
     | '/shop'
     | '/shop/store/$vendor'
   id:
@@ -210,6 +221,7 @@ export interface FileRouteTypes {
     | '/_authenticated/users'
     | '/shop/$productId'
     | '/shop/cart'
+    | '/shop/payment'
     | '/shop/'
     | '/shop/store/$vendor'
   fileRoutesById: FileRoutesById
@@ -219,6 +231,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   ShopProductIdRoute: typeof ShopProductIdRoute
   ShopCartRoute: typeof ShopCartRoute
+  ShopPaymentRoute: typeof ShopPaymentRoute
   ShopIndexRoute: typeof ShopIndexRoute
   ShopStoreVendorRoute: typeof ShopStoreVendorRoute
 }
@@ -330,6 +343,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopCartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shop/payment': {
+      id: '/shop/payment'
+      path: '/shop/payment'
+      fullPath: '/shop/payment'
+      preLoaderRoute: typeof ShopPaymentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shop/store/$vendor': {
       id: '/shop/store/$vendor'
       path: '/shop/store/$vendor'
@@ -375,6 +395,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   ShopProductIdRoute: ShopProductIdRoute,
   ShopCartRoute: ShopCartRoute,
+  ShopPaymentRoute: ShopPaymentRoute,
   ShopIndexRoute: ShopIndexRoute,
   ShopStoreVendorRoute: ShopStoreVendorRoute,
 }

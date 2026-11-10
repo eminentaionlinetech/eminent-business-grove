@@ -1,7 +1,21 @@
 // Mutations that touch several collections at once (orders change stock, etc.).
-import { addToCartList, applyStock, resolveCart, shopListing, stockDelta, validateShopOrder } from "./business";
+import {
+  MIN_ONLINE_PAYMENT,
+  addToCartList,
+  applyStock,
+  cartTotal,
+  formatNaira,
+  isSampleProduct,
+  resolveCart,
+  shopListing,
+  stockDelta,
+  validateEmail,
+  validateShopOrder,
+} from "./business";
 import {
   KEYS,
+  setPendingPayment,
+  type PendingPayment,
   getCart,
   getCustomers,
   getOrders,
@@ -108,15 +122,15 @@ export function updateProfile(currentEmail: string, next: { business: string; ph
   return { ok: true as const };
 }
 
-/** Adds a few real-looking starter products so a new shop isn't empty. */
-export function addStarterProducts(ownerEmail: string) {
-  const now = new Date().toISOString();
-  const starter: Product[] = [
-    { name: "Ankara Wrap Dress", price: 18500, stock: 12, category: "Fashion", imageUrl: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=600&q=70" },
-    { name: "Shea Butter Glow Cream", price: 6500, stock: 4, category: "Beauty", imageUrl: "https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?w=600&q=70" },
-    { name: "Leather Tote Bag", price: 24000, stock: 7, category: "Shoes & Bags", imageUrl: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&q=70" },
-  ].map((p) => ({ ...p, id: uid("prd"), ownerEmail, createdAt: now }));
-  setProducts([...starter, ...getProducts()]);
+/** Removes the old example products (not real items) that earlier versions could load. */
+export function removeSampleProducts() {
+  const products = getProducts();
+  const clean = products.filter((p) => !isSampleProduct(p));
+  if (clean.length !== products.length) {
+    const removed = new Set(products.filter((p) => isSampleProduct(p)).map((p) => p.id));
+    setProducts(clean);
+    setCart(getCart().filter((c) => !removed.has(c.productId)));
+  }
 }
 
 /** A shopper buys from the public shop: checks stock, then sends a Pending order to the vendor. */
@@ -166,7 +180,7 @@ export function clearCart() {
 }
 
 /** One checkout for the whole cart: every item becomes a Pending order for its own seller. All or nothing. */
-export function checkoutCart(input: { name: string; phone: string; note: string }) {
+export function checkoutCart(input: { name: string; phone: string; note: string; payNow?: { email: string } | undefined }) {
   const lines = resolveCart(getCart(), getProducts(), getUsers());
   if (lines.length === 0) return { ok: false as const, error: "Your cart is empty" };
   const bad = lines.find((l) => l.problem);
@@ -174,6 +188,12 @@ export function checkoutCart(input: { name: string; phone: string; note: string 
   for (const l of lines) {
     const error = validateShopOrder({ stock: l.item!.stock, quantity: l.quantity, name: input.name, phone: input.phone });
     if (error) return { ok: false as const, error };
+  }
+  const reference = input.payNow ? uid("ebh") : undefined;
+  if (input.payNow) {
+    const emailError = validateEmail(input.payNow.email);
+    if (emailError) return { ok: false as const, error: emailError };
+    if (cartTotal(lines) < MIN_ONLINE_PAYMENT) return { ok: false as const, error: `Online payment needs at least ${formatNaira(MIN_ONLINE_PAYMENT)}. Choose pay later.` };
   }
   const orders = lines.map((l) =>
     createOrder({
@@ -186,10 +206,48 @@ export function checkoutCart(input: { name: string; phone: string; note: string 
       status: "Pending",
       note: input.note.trim() || undefined,
       source: "shop",
+      paymentStatus: "unpaid",
+      paymentRef: reference,
     }),
   );
   setCart([]);
-  return { ok: true as const, orders, lines };
+  let payment: PendingPayment | null = null;
+  if (input.payNow && reference) {
+    payment = {
+      reference,
+      orderIds: orders.map((o) => o.id),
+      amount: cartTotal(lines),
+      email: input.payNow.email.trim(),
+      name: input.name.trim(),
+      phone: input.phone.trim(),
+      items: lines.map((l) => `${l.item!.name} x${l.quantity} (${l.item!.vendor.business})`).join(", ").slice(0, 1000),
+      createdAt: new Date().toISOString(),
+    };
+    setPendingPayment(payment);
+  }
+  return { ok: true as const, orders, lines, payment };
+}
+
+/** Starts a fresh Paystack attempt for orders whose payment did not finish. */
+export function retryPayment(payment: PendingPayment) {
+  const reference = uid("ebh");
+  const ids = new Set(payment.orderIds);
+  setOrders(getOrders().map((o) => (ids.has(o.id) ? { ...o, paymentRef: reference } : o)));
+  const next = { ...payment, reference, createdAt: new Date().toISOString() };
+  setPendingPayment(next);
+  return next;
+}
+
+/** Called only after Paystack confirmed the exact amount: marks every order of that payment as paid. */
+export function markPaymentPaid(payment: PendingPayment) {
+  const ids = new Set(payment.orderIds);
+  setOrders(getOrders().map((o) => (ids.has(o.id) ? { ...o, paymentStatus: "paid", paymentRef: payment.reference } : o)));
+  setPendingPayment(null);
+}
+
+/** Shopper gives up on paying online: keep the orders as pay later. */
+export function payLaterInstead() {
+  setPendingPayment(null);
 }
 
 // ---------- Seller shop controls ----------

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { getPaystackStatus } from "@/lib/paystack.functions";
 import { Download, LogOut, Mail, Upload, CreditCard, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,27 @@ export const Route = createFileRoute("/_authenticated/settings")({
 });
 
 const goldBtn = "bg-gold text-navy hover:bg-gold/90";
+
+function PaymentsInfo({ isAdmin }: { isAdmin: boolean }) {
+  const status = useServerFn(getPaystackStatus);
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  useEffect(() => {
+    status().then((r) => setConfigured(r.configured)).catch(() => setConfigured(false));
+  }, [status]);
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="flex items-center gap-2 font-semibold">
+        <CreditCard className="h-4 w-4 text-navy" />
+        {configured === null ? "Checking Paystack…" : configured ? "Paystack is connected" : "Paystack is not connected"}
+      </p>
+      <p className="text-muted-foreground">
+        {isAdmin
+          ? "Shoppers can pay with card, bank transfer or USSD. Money goes into the owner's Paystack account — see each payment, with customer and items, in your Paystack dashboard, then send sellers their share."
+          : "Shoppers can pay online with Paystack or choose pay later. Orders paid online show a green \"Paid online\" badge. Eminent Business Hub collects the payment and sends your money to you."}
+      </p>
+    </div>
+  );
+}
 
 function SettingsPage() {
   const { session, isAdmin } = useApp();
@@ -155,7 +178,7 @@ function SettingsPage() {
         </Panel>
 
         <Panel title="Payments">
-          <p className="flex items-center gap-2 text-sm text-muted-foreground"><CreditCard className="h-4 w-4" /> Online payments are coming soon.</p>
+          <PaymentsInfo isAdmin={isAdmin} />
         </Panel>
 
         <Panel title="Account">

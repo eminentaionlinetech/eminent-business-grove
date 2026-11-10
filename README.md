@@ -22,7 +22,7 @@ Settings → Backup & restore → **Download backup**. On a new phone: sign in, 
 Never put real keys or passwords in this README.
 
 ## Payments
-Placeholder only — no payment provider connected yet.
+Paystack is connected (owner's account). In the cart, shoppers choose "Pay now with Paystack" (card, transfer, USSD) or "Pay later". After paying, Paystack sends them back and the app checks the payment before marking orders "Paid online". See every payment, with customer and items, in your Paystack dashboard, then send sellers their share. To change the Paystack key: Lovable → Connectors → Paystack.
 
 ## Verification checklist
 - Create account → lands on Home, "Welcome back, {Business}".

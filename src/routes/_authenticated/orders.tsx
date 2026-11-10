@@ -101,6 +101,11 @@ function OrdersPage() {
                   <span className="font-bold">{o.customerName}</span>
                   <StatusBadge status={o.status} />
                   {o.source === "shop" ? <span className="rounded-full bg-gold-soft px-2 py-0.5 text-[0.65rem] font-bold text-navy">From shop</span> : null}
+                  {o.paymentStatus === "paid" ? (
+                    <span className="rounded-full bg-success-soft px-2 py-0.5 text-[0.65rem] font-bold text-success">Paid online</span>
+                  ) : o.source === "shop" ? (
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[0.65rem] font-bold text-muted-foreground">Pay later</span>
+                  ) : null}
                 </div>
                 <div className="mt-0.5 text-sm text-muted-foreground">
                   {o.productName} × {o.quantity} • {new Date(o.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}

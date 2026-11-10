@@ -15,4 +15,6 @@
 - [x] Product pages with description + Add to cart / Buy now
 - [x] Shopping cart with one checkout for many sellers
 - [x] Seller "My Shop" controls: open/close shop, about text, show/hide products, share link
+- [x] Paystack payments into the owner's account (pay now or pay later)
+- [x] Remove fake example products
 - [ ] EmailJS keys — waiting on the user (enter in Settings as admin)

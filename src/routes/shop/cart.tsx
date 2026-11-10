@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
+import type React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeft, CheckCircle2, MessageCircle, Minus, Plus, ShoppingCart, Store, Trash2, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, CreditCard, Loader2, MessageCircle, Minus, Plus, ShoppingCart, Store, Trash2, Wallet } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ProductImage } from "@/components/ebh/ui-bits";
 import { ShopLayout, useCart, useHydrated, useShopData } from "@/components/ebh/shop";
-import { cartTotal, formatNaira, groupBySeller, resolveCart, toWhatsAppNumber, type CartLine, type ShopVendor } from "@/lib/business";
-import { checkoutCart, removeFromCart, setCartQuantity } from "@/lib/actions";
+import { MIN_ONLINE_PAYMENT, cartTotal, formatNaira, groupBySeller, resolveCart, toKobo, toWhatsAppNumber, type CartLine, type ShopVendor } from "@/lib/business";
+import { startPaystackPayment } from "@/lib/paystack.functions";
+import { checkoutCart, payLaterInstead, removeFromCart, setCartQuantity } from "@/lib/actions";
 
 export const Route = createFileRoute("/shop/cart")({
   head: () => ({
@@ -25,7 +28,7 @@ export const Route = createFileRoute("/shop/cart")({
   component: CartPage,
 });
 
-type Placed = { name: string; phone: string; note: string; groups: { vendor: ShopVendor; lines: CartLine[] }[]; total: number };
+type Placed = { name: string; phone: string; note: string; groups: { vendor: ShopVendor; lines: CartLine[] }[]; total: number; paymentFailed?: string | undefined };
 
 function CartPage() {
   const hydrated = useHydrated();
@@ -40,17 +43,50 @@ function CartPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
+  const [email, setEmail] = useState("");
+  const [method, setMethod] = useState<"paystack" | "later">("paystack");
+  const [busy, setBusy] = useState(false);
   const [placed, setPlaced] = useState<Placed | null>(null);
+  const startPayment = useServerFn(startPaystackPayment);
+  const payNow = method === "paystack" && total >= MIN_ONLINE_PAYMENT;
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const res = checkoutCart({ name, phone, note });
+    if (busy) return;
+    const res = checkoutCart({ name, phone, note, payNow: payNow ? { email } : undefined });
     if (!res.ok) {
       toast.error(res.error);
       return;
     }
-    setPlaced({ name: name.trim(), phone: phone.trim(), note: note.trim(), groups: groupBySeller(res.lines), total: cartTotal(res.lines) });
-    toast.success(res.orders.length > 1 ? `${res.orders.length} orders sent` : "Order sent to the seller");
+    const summary: Placed = { name: name.trim(), phone: phone.trim(), note: note.trim(), groups: groupBySeller(res.lines), total: cartTotal(res.lines) };
+    if (res.payment) {
+      setBusy(true);
+      try {
+        const pay = await startPayment({
+          data: {
+            email: res.payment.email,
+            amountKobo: toKobo(res.payment.amount),
+            reference: res.payment.reference,
+            customerName: res.payment.name,
+            customerPhone: res.payment.phone,
+            items: res.payment.items,
+          },
+        });
+        if (pay.ok) {
+          window.location.assign(pay.url);
+          return;
+        }
+        summary.paymentFailed = pay.error;
+      } catch {
+        summary.paymentFailed = "Could not reach Paystack";
+      }
+      payLaterInstead();
+      setBusy(false);
+      toast.error("Online payment could not start. Your order was saved as pay later.");
+    } else {
+      toast.success(res.orders.length > 1 ? `${res.orders.length} orders sent` : "Order sent to the seller");
+    }
+    setPlaced(summary);
     window.scrollTo({ top: 0 });
   };
 
@@ -136,18 +172,60 @@ function CartPage() {
             {groups.length > 1 ? (
               <p className="text-xs text-muted-foreground">Your order goes to {groups.length} sellers. Each one will contact you.</p>
             ) : null}
-            <div className="flex items-start gap-2 rounded-xl bg-gold-soft p-3 text-xs text-navy">
-              <Wallet className="mt-0.5 h-4 w-4 shrink-0" />
-              No payment now. Sellers contact you to arrange transfer or pay-on-delivery.
-            </div>
-            <Button type="submit" disabled={hasProblem} className="h-12 w-full bg-gold text-base font-bold text-navy hover:bg-gold/90">
-              Place order • {formatNaira(total)}
+            <fieldset className="space-y-2">
+              <legend className="mb-1 text-sm font-semibold">How do you want to pay?</legend>
+              <PayOption
+                checked={payNow}
+                onSelect={() => setMethod("paystack")}
+                icon={<CreditCard className="h-4 w-4" />}
+                title="Pay now with Paystack"
+                text="Card, bank transfer or USSD. Secure payment."
+                disabled={total < MIN_ONLINE_PAYMENT}
+              />
+              <PayOption
+                checked={!payNow}
+                onSelect={() => setMethod("later")}
+                icon={<Wallet className="h-4 w-4" />}
+                title="Pay later"
+                text="The seller contacts you for transfer or pay on delivery."
+              />
+            </fieldset>
+            {payNow ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="c-email">Email for your receipt</Label>
+                <Input id="c-email" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmail.com" autoComplete="email" required />
+              </div>
+            ) : null}
+            <Button type="submit" disabled={hasProblem || busy} className="h-12 w-full bg-gold text-base font-bold text-navy hover:bg-gold/90">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {busy ? "Opening Paystack…" : payNow ? `Pay ${formatNaira(total)} with Paystack` : `Place order • ${formatNaira(total)}`}
             </Button>
             {hasProblem ? <p className="text-center text-xs text-destructive">Fix the items marked in red first.</p> : null}
           </form>
         </div>
       )}
     </ShopLayout>
+  );
+}
+
+function PayOption(props: { checked: boolean; onSelect: () => void; icon: React.ReactNode; title: string; text: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={props.checked}
+      disabled={props.disabled}
+      onClick={props.onSelect}
+      className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition disabled:opacity-50 ${props.checked ? "border-navy bg-secondary" : "bg-card"}`}
+    >
+      <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${props.checked ? "border-navy" : ""}`}>
+        {props.checked ? <span className="h-2 w-2 rounded-full bg-navy" /> : null}
+      </span>
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-sm font-bold text-navy">{props.icon} {props.title}</span>
+        <span className="block text-xs text-muted-foreground">{props.text}</span>
+      </span>
+    </button>
   );
 }
 
@@ -208,6 +286,11 @@ function OrderSent({ placed }: { placed: Placed }) {
       <div className="flex items-center gap-2 text-lg font-bold text-success">
         <CheckCircle2 className="h-6 w-6" /> Order sent!
       </div>
+      {placed.paymentFailed ? (
+        <p className="mt-2 rounded-xl bg-card p-3 text-xs text-destructive">
+          Online payment didn't start ({placed.paymentFailed}). Your order is saved as pay later.
+        </p>
+      ) : null}
       <p className="mt-2 text-sm">
         Total <b>{formatNaira(placed.total)}</b>. {placed.groups.length > 1 ? "Each seller" : "The seller"} will contact you on <b>{placed.phone}</b> to confirm payment and delivery.
       </p>

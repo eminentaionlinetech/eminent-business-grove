@@ -213,3 +213,66 @@ describe("cart and seller shop controls", () => {
     expect(placeShopOrder({ productId: "p1", quantity: 1, name: "Chika", phone: "08031234567", note: "" }).ok).toBe(false);
   });
 });
+
+describe("Paystack payments", () => {
+  const vendor = { email: "ada@gmail.com", business: "Ada Fabrics", phone: "08031234567", passwordHash: "x", role: "user" as const, createdAt: "2026-11-01T00:00:00.000Z" };
+  const product = { id: "p1", ownerEmail: vendor.email, name: "Ankara Dress", price: 18500, stock: 3, imageUrl: "", category: "Fashion", createdAt: "2026-11-01T00:00:00.000Z" };
+
+  it("converts naira to kobo for Paystack", async () => {
+    const { toKobo } = await import("@/lib/business");
+    expect(toKobo(18500)).toBe(1850000);
+    expect(toKobo(49.99)).toBe(4999);
+  });
+
+  it("only counts a payment when Paystack says success for the exact naira amount", async () => {
+    const { paymentMatches } = await import("@/lib/business");
+    expect(paymentMatches(37000, { status: "success", amountKobo: 3700000, currency: "NGN" })).toBe(true);
+    expect(paymentMatches(37000, { status: "success", amountKobo: 3600000, currency: "NGN" })).toBe(false);
+    expect(paymentMatches(37000, { status: "abandoned", amountKobo: 3700000, currency: "NGN" })).toBe(false);
+    expect(paymentMatches(37000, { status: "success", amountKobo: 3700000, currency: "USD" })).toBe(false);
+  });
+
+  it("pay now needs an email and leaves orders unpaid until Paystack confirms", async () => {
+    const { addToCart, checkoutCart, markPaymentPaid } = await import("@/lib/actions");
+    const { getOrders, getPendingPayment, setProducts, setUsers } = await import("@/lib/storage");
+    setUsers([vendor]);
+    setProducts([product]);
+    addToCart("p1", 2);
+    expect(checkoutCart({ name: "Chika", phone: "08031234567", note: "", payNow: { email: "bad" } }).ok).toBe(false);
+    const res = checkoutCart({ name: "Chika", phone: "08031234567", note: "", payNow: { email: "chika@gmail.com" } });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.payment?.amount).toBe(37000);
+    expect(getOrders()[0]).toMatchObject({ paymentStatus: "unpaid", paymentRef: res.payment?.reference });
+    expect(getPendingPayment()?.reference).toBe(res.payment?.reference);
+    markPaymentPaid(res.payment!);
+    expect(getOrders()[0]?.paymentStatus).toBe("paid");
+    expect(getPendingPayment()).toBeNull();
+  });
+
+  it("pay later orders are saved without a Paystack payment", async () => {
+    const { addToCart, checkoutCart } = await import("@/lib/actions");
+    const { getOrders, getPendingPayment, setProducts, setUsers } = await import("@/lib/storage");
+    setUsers([vendor]);
+    setProducts([product]);
+    addToCart("p1", 1);
+    const res = checkoutCart({ name: "Chika", phone: "08031234567", note: "" });
+    expect(res.ok && res.payment).toBeNull();
+    expect(getOrders()[0]?.paymentStatus).toBe("unpaid");
+    expect(getPendingPayment()).toBeNull();
+  });
+});
+
+describe("no fake items", () => {
+  it("removes the old example products but keeps real ones", async () => {
+    const { removeSampleProducts } = await import("@/lib/actions");
+    const { getProducts, setProducts } = await import("@/lib/storage");
+    const base = { ownerEmail: "ada@gmail.com", price: 1000, stock: 2, category: "Fashion", createdAt: "2026-11-01T00:00:00.000Z" };
+    setProducts([
+      { ...base, id: "fake", name: "Ankara Wrap Dress", imageUrl: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=600&q=70" },
+      { ...base, id: "real", name: "Ankara Wrap Dress", imageUrl: "data:image/jpeg;base64,abc" },
+    ]);
+    removeSampleProducts();
+    expect(getProducts().map((p) => p.id)).toEqual(["real"]);
+  });
+});

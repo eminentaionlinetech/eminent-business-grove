@@ -26,7 +26,7 @@ function ShopHome() {
           Shop from <span className="text-gold">small businesses</span> you can trust.
         </h1>
         <p className="mt-2 max-w-lg text-sm opacity-85">
-          Pick a product, send your order, and the seller contacts you to confirm payment and delivery.
+          Pick a product, pay securely with Paystack or pay later, and the seller contacts you to arrange delivery.
         </p>
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold">
           <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-gold" /> Real local sellers</span>
