@@ -148,7 +148,7 @@ function ProductView({ productId }: { productId: string }) {
               <div className="text-center text-xs text-muted-foreground">Total for {qty}: <b className="text-navy">{formatNaira(total)}</b></div>
               <div className="flex items-start gap-2 rounded-xl bg-gold-soft p-3 text-xs text-navy">
                 <Wallet className="mt-0.5 h-4 w-4 shrink-0" />
-                No payment now. The seller will contact you to arrange transfer or pay-on-delivery. Online card payment is coming soon.
+                At checkout, pay securely with Paystack (card, transfer or USSD) or choose pay later.
               </div>
             </div>
           )}

@@ -19,7 +19,7 @@ import { EmptyState, PageHeader, ProductImage, StockBadge } from "@/components/e
 import { ProductDialog } from "@/components/ebh/forms";
 import { useApp } from "@/hooks/use-store";
 import { CATEGORIES, formatNaira } from "@/lib/business";
-import { addStarterProducts, deleteProduct } from "@/lib/actions";
+import { deleteProduct } from "@/lib/actions";
 import type { Product } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -90,12 +90,9 @@ function ProductsPage() {
         <EmptyState
           icon={<Package className="h-5 w-5" />}
           title="No products yet"
-          text="Add the items you sell — name, price, stock and a photo link."
+          text="Add the items you really sell — name, price, stock and a photo."
           action={
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => addStarterProducts(session.email)}>
-                Load examples
-              </Button>
               <Button onClick={startAdd} className="bg-gold text-navy hover:bg-gold/90">
                 Add product
               </Button>

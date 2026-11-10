@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { logout } from "@/lib/auth";
+import { removeSampleProducts } from "@/lib/actions";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -128,6 +129,11 @@ function RootComponent() {
 
   // Expose logout for console use. It only clears ebh_is_logged_in and ebh_role,
   // so email, business, phone and password stay remembered for the next sign-in.
+  // Old example products were not real items — clear them from this device.
+  useEffect(() => {
+    removeSampleProducts();
+  }, []);
+
   useEffect(() => {
     const w = window as unknown as Record<string, unknown>;
     const originalLogout = (w["logout"] || w["handleLogout"]) as ((...a: unknown[]) => unknown) | undefined;

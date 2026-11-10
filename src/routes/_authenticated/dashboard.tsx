@@ -7,7 +7,6 @@ import { LowStockPanel, RecentOrders, RevenueChartPanel, TopProductsPanel } from
 import { OrderDialog, ProductDialog } from "@/components/ebh/forms";
 import { useApp } from "@/hooks/use-store";
 import { formatNaira, pendingValueOf, revenueOf } from "@/lib/business";
-import { addStarterProducts } from "@/lib/actions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -59,12 +58,9 @@ function Dashboard() {
           <Sparkles className="h-6 w-6 text-gold" />
           <div className="flex-1">
             <p className="font-bold">Your shop is empty</p>
-            <p className="text-sm text-muted-foreground">Add your first product, or load 3 example products to explore.</p>
+            <p className="text-sm text-muted-foreground">Add your first real product with its photo, price and stock.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => addStarterProducts(session.email)}>
-              Load examples
-            </Button>
             <Button onClick={() => setProductOpen(true)} className="bg-gold text-navy hover:bg-gold/90">
               Add product
             </Button>
