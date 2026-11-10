@@ -48,7 +48,7 @@ function CartPage() {
   const [busy, setBusy] = useState(false);
   const [placed, setPlaced] = useState<Placed | null>(null);
   const startPayment = useServerFn(startPaystackPayment);
-  const payNow = method === "paystack";
+  const payNow = method === "paystack" && total >= MIN_ONLINE_PAYMENT;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
