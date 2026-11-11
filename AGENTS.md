@@ -40,3 +40,4 @@ use the editor.
 - Sellers control their public store with `shopOpen`/`shopBio` on their user and `hidden` on each product; `shopListing` is the single filter every shop page and order action goes through.
 - Paystack runs only on the server (`src/lib/paystack.functions.ts` → connector gateway `udc_paystack`); the browser never sees the key, and orders turn "paid" only after `verifyPaystackPayment` confirms the exact amount (`paymentMatches`).
 - Pay-now orders are created first as unpaid with a `paymentRef`, and the attempt is kept in `ebh_pending_payment` so the `/shop/payment` return page can confirm or retry it.
+- The logo PNGs are bundled from `src/assets/` (plain image imports, not CDN pointers) so the logo also shows when the app is hosted outside Lovable, e.g. on Vercel.

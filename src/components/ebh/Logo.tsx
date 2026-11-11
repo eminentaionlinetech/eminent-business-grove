@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import logoFull from "@/assets/ebh-logo-full.png.asset.json";
-import logoMark from "@/assets/ebh-logo-mark.png.asset.json";
+import logoFullUrl from "@/assets/ebh-logo-full.png";
+import logoMarkUrl from "@/assets/ebh-logo-mark.png";
 
 /**
  * Brand mark. Uses ONLY the owner's original logo:
@@ -21,7 +21,7 @@ export function Logo({
   if (full) {
     return (
       <img
-        src={logoFull.url}
+        src={logoFullUrl}
         alt="Eminent Business Hub — Empowering Small Businesses • Products • Orders • Marketing • Growth"
         className={cn("h-auto w-72 max-w-full rounded-2xl shadow-lg ring-1 ring-gold/30 md:w-96", className)}
       />
@@ -32,7 +32,7 @@ export function Logo({
   return (
     <div className={cn("flex items-center gap-3", className)}>
       <img
-        src={logoMark.url}
+        src={logoMarkUrl}
         alt="Eminent Business Hub logo"
         className={cn("shrink-0 rounded-lg object-cover ring-1 ring-gold/40", box)}
       />
