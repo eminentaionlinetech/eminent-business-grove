@@ -79,8 +79,8 @@ function Dashboard() {
         </div>
       </div>
 
-      <ProductDialog open={productOpen} onOpenChange={setProductOpen} ownerEmail={session.email} />
-      <OrderDialog open={orderOpen} onOpenChange={setOrderOpen} ownerEmail={session.email} products={products} customers={customers} />
+      <ProductDialog open={productOpen} onOpenChange={setProductOpen} ownerId={session.id} />
+      <OrderDialog open={orderOpen} onOpenChange={setOrderOpen} ownerId={session.id} products={products} customers={customers} />
     </div>
   );
 }

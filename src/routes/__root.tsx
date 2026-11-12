@@ -12,8 +12,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
-import { logout } from "@/lib/auth";
-import { removeSampleProducts } from "@/lib/actions";
+import { initAuth, logout } from "@/lib/auth";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -127,9 +126,9 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
-  // Old example products were not real items — clear them from this device.
+  // Sign-in check + online data loading, once in the browser.
   useEffect(() => {
-    removeSampleProducts();
+    initAuth();
   }, []);
 
   // Expose logout for console use. It only clears ebh_is_logged_in and ebh_role,
@@ -140,7 +139,7 @@ function RootComponent() {
     const wrapped = function (this: unknown, ...args: unknown[]) {
       localStorage.removeItem("ebh_is_logged_in");
       localStorage.removeItem("ebh_role");
-      logout();
+      void logout();
       return originalLogout && originalLogout !== wrapped ? originalLogout.apply(this, args) : undefined;
     };
     w["logout"] = w["handleLogout"] = wrapped;

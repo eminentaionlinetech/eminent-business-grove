@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
-import { ShieldAlert, ShieldCheck, Loader2, ShoppingBag } from "lucide-react";
+import { ShieldCheck, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Logo, Splash } from "@/components/ebh/Logo";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ function AuthPage() {
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
   const [adminFocusRequest, setAdminFocusRequest] = useState(0);
 
@@ -68,8 +69,9 @@ function AuthPage() {
     const res = await signIn({ email, password, remember });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
-    toast.success(`Welcome back, ${res.user.business}!`);
-    navigate({ to: res.user.role === "admin" ? "/admin" : "/dashboard" });
+    if (res.needsConfirm) return;
+    toast.success(`Welcome back${res.session.business ? `, ${res.session.business}` : ""}!`);
+    navigate({ to: res.session.role === "admin" ? "/admin" : "/dashboard" });
   };
 
   const onSignUp = async (e: FormEvent) => {
@@ -81,12 +83,15 @@ function AuthPage() {
       setBusy(false);
       { setError(res.error); return; }
     }
-    const mail = await sendWelcomeEmail(res.user.email, res.user.business);
+    const mail = await sendWelcomeEmail(email.trim().toLowerCase(), business.trim());
     setBusy(false);
-    toast.success("Account created!", {
-      description: mail.ok ? "A welcome email is on its way." : undefined,
-    });
-    navigate({ to: res.user.role === "admin" ? "/admin" : "/dashboard" });
+    if (res.needsConfirm) {
+      setTab("signin");
+      setNotice(`Account created! We sent a confirmation link to ${res.email}. Open it (check spam too), then sign in.`);
+      return;
+    }
+    toast.success("Account created!", { description: mail.ok ? "A welcome email is on its way." : undefined });
+    navigate({ to: res.session.role === "admin" ? "/admin" : "/dashboard" });
   };
 
   const rememberBox = (
@@ -142,6 +147,7 @@ function AuthPage() {
                     Forgot password?
                   </button>
                 </div>
+                {notice ? <p role="status" className="rounded-lg bg-success-soft p-3 text-sm font-medium text-success">{notice}</p> : null}
                 {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
                 <Button type="submit" disabled={busy} className="h-11 w-full bg-gold text-navy shadow-gold hover:bg-gold/90">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Sign in
@@ -191,14 +197,14 @@ function AuthPage() {
             </Button>
             {adminFocusRequest > 0 ? (
               <p role="status" className="mt-3 break-words rounded-lg bg-secondary p-3 text-sm text-foreground">
-                Signing in with <strong>{OWNER_EMAIL}</strong> or <strong>{DEFAULT_ADMIN_EMAIL}</strong> gives full admin access on this device. Enter your password to continue.
+                Signing in with <strong>{OWNER_EMAIL}</strong> or <strong>{DEFAULT_ADMIN_EMAIL}</strong> gives full admin access on any phone. Enter your password to continue.
               </p>
             ) : null}
           </Tabs>
 
           <p className="mt-5 flex gap-2 rounded-lg bg-secondary p-3 text-xs text-muted-foreground">
-            <ShieldAlert className="h-4 w-4 shrink-0 text-navy" />
-            Your account and data are saved on this device only. For secure online accounts, a proper sign-in server is needed later.
+            <ShieldCheck className="h-4 w-4 shrink-0 text-navy" />
+            Your account and products are saved online — sign in on any phone, and every shopper can see your products.
           </p>
         </div>
       </div>
@@ -207,11 +213,6 @@ function AuthPage() {
         open={forgotOpen}
         onOpenChange={setForgotOpen}
         initialEmail={email}
-        onRecovered={(user) => {
-          setForgotOpen(false);
-          toast.success("Password reset successful!", { description: `Welcome back, ${user.business}.` });
-          navigate({ to: user.role === "admin" ? "/admin" : "/dashboard" });
-        }}
       />
     </div>
   );

@@ -9,13 +9,13 @@ import { deleteCustomer } from "@/lib/actions";
 import type { Customer, Order } from "@/lib/storage";
 
 export function CustomerList({
-  ownerEmail,
+  ownerId,
   customers,
   orders,
   showOwner,
   embedded = false,
 }: {
-  ownerEmail: string;
+  ownerId: string;
   customers: Customer[];
   orders: Order[];
   showOwner: boolean;
@@ -51,7 +51,7 @@ export function CustomerList({
               <div className="min-w-0 flex-1">
                 <div className="truncate font-bold">{c.name}</div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {c.orders} orders • {formatNaira(c.spent)} spent{showOwner ? ` • ${c.ownerEmail}` : ""}
+                  {c.orders} orders • {formatNaira(c.spent)} spent{showOwner ? ` • ${c.ownerId.slice(0, 6)}` : ""}
                 </div>
               </div>
               {c.phone ? (
@@ -62,7 +62,7 @@ export function CustomerList({
                 </Button>
               ) : null}
               {c.saved ? (
-                <Button size="icon" variant="ghost" aria-label={`Remove ${c.name}`} onClick={() => c.saved && deleteCustomer(c.saved.id)}>
+                <Button size="icon" variant="ghost" aria-label={`Remove ${c.name}`} onClick={() => c.saved && void deleteCustomer(c.saved.id)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               ) : null}
@@ -70,7 +70,7 @@ export function CustomerList({
           ))}
         </div>
       )}
-      <CustomerDialog open={open} onOpenChange={setOpen} ownerEmail={ownerEmail} />
+      <CustomerDialog open={open} onOpenChange={setOpen} ownerId={ownerId} />
     </div>
   );
 }

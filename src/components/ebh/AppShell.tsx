@@ -58,7 +58,7 @@ export function AppShell({ session, children }: { session: Session; children: Re
 
   const doLogout = () => {
     setMoreOpen(false);
-    logout();
+    void logout();
     navigate({ to: "/" });
   };
 

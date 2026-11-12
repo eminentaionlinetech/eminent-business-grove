@@ -1,156 +1,202 @@
-// Mutations that touch several collections at once (orders change stock, etc.).
+// Everything that changes data. Online data goes to Lovable Cloud, then the in-memory copy is refreshed.
+import { supabase } from "@/integrations/supabase/client";
 import {
   MIN_ONLINE_PAYMENT,
   addToCartList,
-  applyStock,
   cartTotal,
   formatNaira,
-  isSampleProduct,
   resolveCart,
+  retryReference,
   shopListing,
   stockDelta,
   validateEmail,
   validateShopOrder,
 } from "./business";
+import { loadPrivate, loadShop, refreshAll, setPhoto, toOrder } from "./cloud";
 import {
-  KEYS,
-  setPendingPayment,
-  type PendingPayment,
   getCart,
   getCustomers,
   getOrders,
   getProducts,
   getUsers,
-  notify,
   setCart,
-  setCustomers,
-  setOrders,
-  setProducts,
-  setUsers,
+  setPendingPayment,
   uid,
   type Order,
   type OrderStatus,
+  type PendingPayment,
   type Product,
 } from "./storage";
 
-export function saveProduct(input: Omit<Product, "id" | "createdAt"> & { id?: string | undefined }) {
-  const products = getProducts();
-  if (input.id) {
-    setProducts(products.map((p) => (p.id === input.id ? { ...p, ...input, id: p.id } : p)));
-  } else {
-    setProducts([{ ...input, id: uid("prd"), createdAt: new Date().toISOString() }, ...products]);
-  }
+export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+
+function fail(error: unknown, fallback = "Something went wrong. Check your internet and try again."): { ok: false; error: string } {
+  const msg = error && typeof error === "object" && "message" in error ? String((error as { message: unknown }).message) : "";
+  if (/network|fetch/i.test(msg)) return { ok: false, error: "No internet connection. Check your data and try again." };
+  // Database messages raised on purpose are already written for shoppers.
+  if (msg && !/violates|permission|policy|syntax|relation|column|uuid/i.test(msg)) return { ok: false, error: msg };
+  return { ok: false, error: fallback };
 }
 
-export function deleteProduct(id: string) {
-  setProducts(getProducts().filter((p) => p.id !== id));
-}
-
-export function createOrder(input: Omit<Order, "id" | "createdAt" | "productName"> & { productName?: string | undefined }) {
-  const products = getProducts();
-  const product = products.find((p) => p.id === input.productId);
-  const order: Order = {
-    ...input,
-    productName: product?.name ?? input.productName ?? "Product",
-    id: uid("ord"),
-    createdAt: new Date().toISOString(),
+// ---------- Products ----------
+export async function saveProduct(input: Omit<Product, "id" | "createdAt"> & { id?: string | undefined }): Promise<Result> {
+  const id = input.id ?? crypto.randomUUID();
+  const upload = input.imageUrl.startsWith("data:image/") ? input.imageUrl : null;
+  const row = {
+    name: input.name.slice(0, 120),
+    price: input.price,
+    stock: input.stock,
+    image_url: upload ? `photo:${id}` : input.imageUrl.slice(0, 2048),
+    category: input.category,
+    description: (input.description ?? "").slice(0, 2000),
+    hidden: !!input.hidden,
   };
-  setProducts(applyStock(products, order.productId, stockDelta(null, order.status, order.quantity)));
-  setOrders([order, ...getOrders()]);
+  const res = input.id
+    ? await supabase.from("products").update(row).eq("id", id)
+    : await supabase.from("products").insert({ ...row, id, owner_id: input.ownerId });
+  if (res.error) return fail(res.error, "Could not save this product. Try again.");
+  if (upload) {
+    const photo = await supabase.from("product_photos").upsert({ product_id: id, data: upload, updated_at: new Date().toISOString() });
+    if (photo.error) return fail(photo.error, "The product was saved but the photo could not be uploaded. Try a smaller photo.");
+    setPhoto(id, upload);
+  } else if (input.id) {
+    await supabase.from("product_photos").delete().eq("product_id", id);
+  }
+  await loadShop();
+  return { ok: true };
+}
 
+export async function deleteProduct(id: string): Promise<Result> {
+  const { error } = await supabase.from("products").delete().eq("id", id);
+  if (error) return fail(error);
+  await loadShop();
+  return { ok: true };
+}
+
+export async function setProductHidden(id: string, hidden: boolean): Promise<Result> {
+  const { error } = await supabase.from("products").update({ hidden }).eq("id", id);
+  if (error) return fail(error);
+  await loadShop();
+  return { ok: true };
+}
+
+async function changeStock(productId: string, delta: number) {
+  if (!delta) return;
+  const p = getProducts().find((x) => x.id === productId);
+  if (!p) return;
+  await supabase.from("products").update({ stock: Math.max(0, p.stock + delta) }).eq("id", productId);
+}
+
+// ---------- Orders (recorded by the seller) ----------
+export async function createOrder(input: {
+  ownerId: string;
+  customerName: string;
+  customerPhone: string;
+  productId: string;
+  quantity: number;
+  total: number;
+  status: OrderStatus;
+}): Promise<Result<{ order: Order }>> {
+  const product = getProducts().find((p) => p.id === input.productId);
+  const { data, error } = await supabase
+    .from("orders")
+    .insert({
+      owner_id: input.ownerId,
+      customer_name: input.customerName.trim().slice(0, 120),
+      customer_phone: input.customerPhone.trim().slice(0, 40),
+      product_id: input.productId,
+      product_name: (product?.name ?? "Product").slice(0, 120),
+      quantity: input.quantity,
+      total: input.total,
+      status: input.status,
+      source: "manual",
+    })
+    .select()
+    .single();
+  if (error || !data) return fail(error, "Could not save this order. Try again.");
+  await changeStock(input.productId, stockDelta(null, input.status, input.quantity));
   // Remember the customer for next time.
-  const customers = getCustomers();
-  const exists = customers.some(
-    (c) => c.ownerEmail === order.ownerEmail && c.name.trim().toLowerCase() === order.customerName.trim().toLowerCase(),
-  );
-  if (!exists && order.customerName.trim()) {
-    setCustomers([
-      { id: uid("cus"), ownerEmail: order.ownerEmail, name: order.customerName.trim(), phone: order.customerPhone, email: "", createdAt: order.createdAt },
-      ...customers,
-    ]);
+  const name = input.customerName.trim();
+  const exists = getCustomers().some((c) => c.ownerId === input.ownerId && c.name.trim().toLowerCase() === name.toLowerCase());
+  if (!exists && name) {
+    await supabase.from("customers").insert({ owner_id: input.ownerId, name: name.slice(0, 120), phone: input.customerPhone.trim().slice(0, 40) });
   }
-  return order;
+  await refreshAll();
+  return { ok: true, order: toOrder(data) };
 }
 
-export function updateOrderStatus(id: string, status: OrderStatus) {
-  const orders = getOrders();
-  const order = orders.find((o) => o.id === id);
-  if (!order || order.status === status) return;
-  setProducts(applyStock(getProducts(), order.productId, stockDelta(order.status, status, order.quantity)));
-  setOrders(orders.map((o) => (o.id === id ? { ...o, status } : o)));
+export async function updateOrderStatus(id: string, status: OrderStatus): Promise<Result> {
+  const order = getOrders().find((o) => o.id === id);
+  if (!order || order.status === status) return { ok: true };
+  const { error } = await supabase.from("orders").update({ status }).eq("id", id);
+  if (error) return fail(error);
+  await changeStock(order.productId, stockDelta(order.status, status, order.quantity));
+  await refreshAll();
+  return { ok: true };
 }
 
-export function deleteOrder(id: string) {
-  const orders = getOrders();
-  const order = orders.find((o) => o.id === id);
-  if (order) setProducts(applyStock(getProducts(), order.productId, stockDelta(order.status, "Cancelled", order.quantity)));
-  setOrders(orders.filter((o) => o.id !== id));
+export async function deleteOrder(id: string): Promise<Result> {
+  const order = getOrders().find((o) => o.id === id);
+  const { error } = await supabase.from("orders").delete().eq("id", id);
+  if (error) return fail(error);
+  if (order) await changeStock(order.productId, stockDelta(order.status, "Cancelled", order.quantity));
+  await refreshAll();
+  return { ok: true };
 }
 
-export function saveCustomer(input: { ownerEmail: string; name: string; phone: string; email: string }) {
-  setCustomers([{ ...input, id: uid("cus"), createdAt: new Date().toISOString() }, ...getCustomers()]);
-}
-
-export function deleteCustomer(id: string) {
-  setCustomers(getCustomers().filter((c) => c.id !== id));
-}
-
-/** Deletes a user account and everything they own. */
-export function deleteUser(email: string) {
-  setUsers(getUsers().filter((u) => u.email !== email));
-  setProducts(getProducts().filter((p) => p.ownerEmail !== email));
-  setOrders(getOrders().filter((o) => o.ownerEmail !== email));
-  setCustomers(getCustomers().filter((c) => c.ownerEmail !== email));
-}
-
-export function updateProfile(currentEmail: string, next: { business: string; phone: string; email: string }) {
-  const email = next.email.trim().toLowerCase();
-  const users = getUsers();
-  if (email !== currentEmail && users.some((u) => u.email === email)) {
-    return { ok: false as const, error: "Another account already uses this email." };
-  }
-  setUsers(users.map((u) => (u.email === currentEmail ? { ...u, email, business: next.business, phone: next.phone } : u)));
-  if (email !== currentEmail) {
-    setProducts(getProducts().map((p) => (p.ownerEmail === currentEmail ? { ...p, ownerEmail: email } : p)));
-    setOrders(getOrders().map((o) => (o.ownerEmail === currentEmail ? { ...o, ownerEmail: email } : o)));
-    setCustomers(getCustomers().map((c) => (c.ownerEmail === currentEmail ? { ...c, ownerEmail: email } : c)));
-  }
-  localStorage.setItem(KEYS.email, email);
-  localStorage.setItem(KEYS.business, next.business);
-  localStorage.setItem(KEYS.phone, next.phone);
-  notify();
-  return { ok: true as const };
-}
-
-/** Removes the old example products (not real items) that earlier versions could load. */
-export function removeSampleProducts() {
-  const products = getProducts();
-  const clean = products.filter((p) => !isSampleProduct(p));
-  if (clean.length !== products.length) {
-    const removed = new Set(products.filter((p) => isSampleProduct(p)).map((p) => p.id));
-    setProducts(clean);
-    setCart(getCart().filter((c) => !removed.has(c.productId)));
-  }
-}
-
-/** A shopper buys from the public shop: checks stock, then sends a Pending order to the vendor. */
-export function placeShopOrder(input: { productId: string; quantity: number; name: string; phone: string; note: string }) {
-  const product = shopListing(getProducts(), getUsers()).find((p) => p.id === input.productId);
-  if (!product) return { ok: false as const, error: "This product is no longer available" };
-  const error = validateShopOrder({ stock: product.stock, quantity: input.quantity, name: input.name, phone: input.phone });
-  if (error) return { ok: false as const, error };
-  const order = createOrder({
-    ownerEmail: product.ownerEmail,
-    customerName: input.name.trim(),
-    customerPhone: input.phone.trim(),
-    productId: product.id,
-    quantity: input.quantity,
-    total: product.price * input.quantity,
-    status: "Pending",
-    note: input.note.trim() || undefined,
-    source: "shop",
+// ---------- Customers ----------
+export async function saveCustomer(input: { ownerId: string; name: string; phone: string; email: string }): Promise<Result> {
+  const { error } = await supabase.from("customers").insert({
+    owner_id: input.ownerId,
+    name: input.name.slice(0, 120),
+    phone: input.phone.slice(0, 40),
+    email: input.email.slice(0, 200),
   });
-  return { ok: true as const, order };
+  if (error) return fail(error);
+  await loadPrivate();
+  return { ok: true };
+}
+
+export async function deleteCustomer(id: string): Promise<Result> {
+  const { error } = await supabase.from("customers").delete().eq("id", id);
+  if (error) return fail(error);
+  await loadPrivate();
+  return { ok: true };
+}
+
+// ---------- Profile & shop settings ----------
+export async function updateProfile(
+  userId: string,
+  currentEmail: string,
+  next: { business: string; phone: string; email: string },
+): Promise<Result<{ emailPending: boolean }>> {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ business: next.business.slice(0, 120), phone: next.phone.slice(0, 40) })
+    .eq("id", userId);
+  if (error) return fail(error);
+  localStorage.setItem("ebh_business", next.business);
+  localStorage.setItem("ebh_phone", next.phone);
+  const email = next.email.trim().toLowerCase();
+  let emailPending = false;
+  if (email && email !== currentEmail) {
+    const res = await supabase.auth.updateUser({ email }, { emailRedirectTo: `${window.location.origin}/` });
+    if (res.error) return fail(res.error, "Could not change your email.");
+    emailPending = true;
+  }
+  const { reloadSession } = await import("./auth");
+  await reloadSession();
+  return { ok: true, emailPending };
+}
+
+export async function updateShopSettings(userId: string, next: { shopOpen?: boolean; shopBio?: string }): Promise<Result> {
+  const patch: { shop_open?: boolean; shop_bio?: string } = {};
+  if (next.shopOpen !== undefined) patch.shop_open = next.shopOpen;
+  if (next.shopBio !== undefined) patch.shop_bio = next.shopBio.slice(0, 300);
+  const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
+  if (error) return fail(error);
+  await loadShop();
+  return { ok: true };
 }
 
 // ---------- Cart (shopper's phone) ----------
@@ -180,7 +226,7 @@ export function clearCart() {
 }
 
 /** One checkout for the whole cart: every item becomes a Pending order for its own seller. All or nothing. */
-export function checkoutCart(input: { name: string; phone: string; note: string; payNow?: { email: string } | undefined }) {
+export async function checkoutCart(input: { name: string; phone: string; note: string; payNow?: { email: string } | undefined }) {
   const lines = resolveCart(getCart(), getProducts(), getUsers());
   if (lines.length === 0) return { ok: false as const, error: "Your cart is empty" };
   const bad = lines.find((l) => l.problem);
@@ -189,32 +235,30 @@ export function checkoutCart(input: { name: string; phone: string; note: string;
     const error = validateShopOrder({ stock: l.item!.stock, quantity: l.quantity, name: input.name, phone: input.phone });
     if (error) return { ok: false as const, error };
   }
-  const reference = input.payNow ? uid("ebh") : undefined;
   if (input.payNow) {
     const emailError = validateEmail(input.payNow.email);
     if (emailError) return { ok: false as const, error: emailError };
     if (cartTotal(lines) < MIN_ONLINE_PAYMENT) return { ok: false as const, error: `Online payment needs at least ${formatNaira(MIN_ONLINE_PAYMENT)}. Choose pay later.` };
   }
-  const orders = lines.map((l) =>
-    createOrder({
-      ownerEmail: l.item!.ownerEmail,
-      customerName: input.name.trim(),
-      customerPhone: input.phone.trim(),
-      productId: l.productId,
-      quantity: l.quantity,
-      total: l.subtotal,
-      status: "Pending",
-      note: input.note.trim() || undefined,
-      source: "shop",
-      paymentStatus: "unpaid",
-      paymentRef: reference,
-    }),
-  );
+  const reference = input.payNow ? uid("ebh") : null;
+  const { data, error } = await supabase.rpc("place_shop_order", {
+    _items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+    _name: input.name.trim(),
+    _phone: input.phone.trim(),
+    _note: input.note.trim(),
+    _pay_ref: reference as string,
+  });
+  if (error) {
+    await loadShop().catch(() => {});
+    return fail(error, "Could not send your order. Check your internet and try again.");
+  }
+  const orders = (data ?? []).map(toOrder);
   setCart([]);
   let payment: PendingPayment | null = null;
   if (input.payNow && reference) {
     payment = {
       reference,
+      attempt: reference,
       orderIds: orders.map((o) => o.id),
       amount: cartTotal(lines),
       email: input.payNow.email.trim(),
@@ -225,36 +269,24 @@ export function checkoutCart(input: { name: string; phone: string; note: string;
     };
     setPendingPayment(payment);
   }
+  void loadShop().catch(() => {});
   return { ok: true as const, orders, lines, payment };
 }
 
 /** Starts a fresh Paystack attempt for orders whose payment did not finish. */
 export function retryPayment(payment: PendingPayment) {
-  const reference = uid("ebh");
-  const ids = new Set(payment.orderIds);
-  setOrders(getOrders().map((o) => (ids.has(o.id) ? { ...o, paymentRef: reference } : o)));
-  const next = { ...payment, reference, createdAt: new Date().toISOString() };
+  const next = { ...payment, attempt: retryReference(payment.reference), createdAt: new Date().toISOString() };
   setPendingPayment(next);
   return next;
 }
 
-/** Called only after Paystack confirmed the exact amount: marks every order of that payment as paid. */
-export function markPaymentPaid(payment: PendingPayment) {
-  const ids = new Set(payment.orderIds);
-  setOrders(getOrders().map((o) => (ids.has(o.id) ? { ...o, paymentStatus: "paid", paymentRef: payment.reference } : o)));
+/** Called after the server confirmed the payment and marked the orders paid. */
+export function markPaymentPaid() {
   setPendingPayment(null);
+  void loadPrivate().catch(() => {});
 }
 
 /** Shopper gives up on paying online: keep the orders as pay later. */
 export function payLaterInstead() {
   setPendingPayment(null);
-}
-
-// ---------- Seller shop controls ----------
-export function setProductHidden(id: string, hidden: boolean) {
-  setProducts(getProducts().map((p) => (p.id === id ? { ...p, hidden } : p)));
-}
-
-export function updateShopSettings(email: string, next: { shopOpen?: boolean; shopBio?: string }) {
-  setUsers(getUsers().map((u) => (u.email === email ? { ...u, ...next } : u)));
 }

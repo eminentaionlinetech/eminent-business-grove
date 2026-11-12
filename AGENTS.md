@@ -30,14 +30,16 @@ use the editor.
 <!-- LOVABLE:END -->
 
 ## Project rules
-- All app data lives in browser localStorage via `src/lib/storage.ts` (no database) — the owner requires on-device storage only. The only server code is the Paystack calls.
+- Accounts, products, orders, customers live online in Lovable Cloud so every shopper sees every seller's products. `src/lib/cloud.ts` loads them into the in-memory `db` (with live updates); pages read it through `useCollection`/`useApp`, and all writes go through `src/lib/actions.ts`.
 - Signed-in pages live under `src/routes/_authenticated/`; the layout guards the session and renders the shared shell.
 - Pure business rules (revenue, stock, analytics) stay in `src/lib/business.ts` so they are unit-tested in `src/test/rules.test.ts`.
 - Welcome emails go through EmailJS in the browser; keys are entered by the admin in Settings, never committed.
 - The public shop lives under `src/routes/shop/` (outside the signed-in area) and only shows vendor business name and phone, never emails or passwords — shoppers are anonymous.
-- Product photos uploaded from a phone are shrunk to small JPEG data and stored on the product itself — keeps everything on-device.
-- The shopper's cart is saved on the shopper's phone (`ebh_cart`); checkout turns each cart line into its own Pending order for that line's seller, all-or-nothing — orders stay one product each so stock and revenue rules keep working.
+- Phone photos are shrunk to small JPEG data in the `product_photos` table and products point to them as `photo:<productId>`; `ProductImage` loads them in batches. (Public storage buckets are blocked in this workspace.)
+- The shopper's cart stays on the shopper's phone (`ebh_cart`); checkout calls the `place_shop_order` database function, which makes one Pending order per line, takes stock atomically and is all-or-nothing.
 - Sellers control their public store with `shopOpen`/`shopBio` on their user and `hidden` on each product; `shopListing` is the single filter every shop page and order action goes through.
-- Paystack runs only on the server (`src/lib/paystack.functions.ts` → connector gateway `udc_paystack`); the browser never sees the key, and orders turn "paid" only after `verifyPaystackPayment` confirms the exact amount (`paymentMatches`).
-- Pay-now orders are created first as unpaid with a `paymentRef`, and the attempt is kept in `ebh_pending_payment` so the `/shop/payment` return page can confirm or retry it.
+- Paystack runs only on the server (`src/lib/paystack.functions.ts` → connector gateway `udc_paystack`); the server reads the order total itself, and only `verifyPaystackPayment` (service role) can mark orders paid — a trigger blocks payment-field edits by anyone else.
+- Pay-now orders are created unpaid with a checkout `paymentRef`; Paystack attempts use that code plus `-r…` for retries (`paymentBase`), and the attempt is kept in `ebh_pending_payment` for `/shop/payment`.
 - The logo PNGs are bundled from `src/assets/` (plain image imports, not CDN pointers) so the logo also shows when the app is hosted outside Lovable, e.g. on Vercel.
+- Admin is a row in `user_roles`, granted by a database trigger only to the owner emails after the email is confirmed; never decide admin from the browser.
+- Password recovery uses the email reset link and `/reset-password`; accounts from the old on-phone version move online on first sign-in (`src/lib/migrate.ts`).

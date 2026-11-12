@@ -1,6 +1,11 @@
 // Welcome emails via EmailJS (browser SDK). Keys are placeholders until set in Settings.
 import { OWNER_EMAIL } from "./auth";
-import { KEYS, addEmailLog, readJson, writeJson, type EmailJsConfig } from "./storage";
+import { supabase } from "@/integrations/supabase/client";
+import { db, setDb, type EmailJsConfig } from "./storage";
+
+async function addEmailLog(log: { to: string; kind: "welcome" | "test"; status: "sent" | "failed" | "skipped"; detail: string }) {
+  await supabase.from("email_logs").insert({ to_email: log.to.slice(0, 200), kind: log.kind, status: log.status, detail: log.detail.slice(0, 500) });
+}
 
 export const APP_URL = "https://eminentbusinesshub.com";
 export const SENDER_NAME = "Eminent Business Hub";
@@ -14,7 +19,7 @@ const PLACEHOLDERS: EmailJsConfig = {
 
 export function getEmailConfig(): EmailJsConfig {
   const env = import.meta.env;
-  const stored = readJson<Partial<EmailJsConfig>>(KEYS.emailjs, {});
+  const stored = db.emailConfig;
   return {
     publicKey: stored.publicKey || env["VITE_EMAILJS_PUBLIC_KEY"] || PLACEHOLDERS.publicKey,
     serviceId: stored.serviceId || env["VITE_EMAILJS_SERVICE_ID"] || PLACEHOLDERS.serviceId,
@@ -25,8 +30,14 @@ export function getEmailConfig(): EmailJsConfig {
   };
 }
 
-export function saveEmailConfig(cfg: EmailJsConfig) {
-  writeJson(KEYS.emailjs, cfg);
+/** Admin only (checked online). Saved online so welcome emails work on every phone. */
+export async function saveEmailConfig(cfg: EmailJsConfig) {
+  const { error } = await supabase.from("email_settings").upsert({
+    id: 1, public_key: cfg.publicKey, service_id: cfg.serviceId, template_id: cfg.templateId, reply_to: cfg.replyTo, updated_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false as const, error: "Could not save email settings." };
+  setDb({ emailConfig: cfg });
+  return { ok: true as const };
 }
 
 export function isEmailConfigured(cfg = getEmailConfig()) {
@@ -36,7 +47,7 @@ export function isEmailConfigured(cfg = getEmailConfig()) {
 export async function sendWelcomeEmail(email: string, business: string, kind: "welcome" | "test" = "welcome") {
   const cfg = getEmailConfig();
   if (!isEmailConfigured(cfg)) {
-    addEmailLog({ to: email, kind, status: "skipped", detail: "EmailJS keys not set yet (Settings → Welcome email)." });
+    await addEmailLog({ to: email, kind, status: "skipped", detail: "EmailJS keys not set yet (Settings → Welcome email)." });
     return { ok: false, reason: "not-configured" as const };
   }
   // SEND WELCOME EMAIL FROM EBH
@@ -56,12 +67,12 @@ export async function sendWelcomeEmail(email: string, business: string, kind: "w
       },
       { publicKey: cfg.publicKey },
     );
-    addEmailLog({ to: email, kind, status: "sent", detail: `Sent as "${SENDER_NAME}", reply-to ${cfg.replyTo}` });
+    await addEmailLog({ to: email, kind, status: "sent", detail: `Sent as "${SENDER_NAME}", reply-to ${cfg.replyTo}` });
     return { ok: true as const };
   } catch (e) {
     const detail =
       e && typeof e === "object" && "text" in e ? String((e as { text: unknown }).text) : String(e);
-    addEmailLog({ to: email, kind, status: "failed", detail });
+    await addEmailLog({ to: email, kind, status: "failed", detail });
     return { ok: false, reason: "failed" as const, detail };
   }
 }

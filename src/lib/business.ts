@@ -90,7 +90,7 @@ export type CustomerSummary = {
   orders: number;
   spent: number;
   saved: Customer | null;
-  ownerEmail: string;
+  ownerId: string;
 };
 
 /** Customers = saved customers + anyone who appears in orders, matched by name. */
@@ -98,22 +98,22 @@ export function summarizeCustomers(customers: Customer[], orders: Order[]): Cust
   const map = new Map<string, CustomerSummary>();
   const keyOf = (owner: string, name: string) => `${owner}::${name.trim().toLowerCase()}`;
   customers.forEach((c) =>
-    map.set(keyOf(c.ownerEmail, c.name), {
-      key: keyOf(c.ownerEmail, c.name),
+    map.set(keyOf(c.ownerId, c.name), {
+      key: keyOf(c.ownerId, c.name),
       name: c.name,
       phone: c.phone,
       email: c.email,
       orders: 0,
       spent: 0,
       saved: c,
-      ownerEmail: c.ownerEmail,
+      ownerId: c.ownerId,
     }),
   );
   orders.forEach((o) => {
-    const k = keyOf(o.ownerEmail, o.customerName);
+    const k = keyOf(o.ownerId, o.customerName);
     const cur =
       map.get(k) ??
-      ({ key: k, name: o.customerName, phone: o.customerPhone, email: "", orders: 0, spent: 0, saved: null, ownerEmail: o.ownerEmail } as CustomerSummary);
+      ({ key: k, name: o.customerName, phone: o.customerPhone, email: "", orders: 0, spent: 0, saved: null, ownerId: o.ownerId } as CustomerSummary);
     if (o.status !== "Cancelled") cur.orders += 1;
     if (o.status === "Completed") cur.spent += o.total;
     if (!cur.phone && o.customerPhone) cur.phone = o.customerPhone;
@@ -137,8 +137,8 @@ export const CATEGORIES: string[] = [
 ];
 
 // ---------- Public shop ----------
-export type ShopVendor = { email: string; slug: string; business: string; phone: string; open: boolean; bio: string };
-type VendorUser = { email: string; business: string; phone: string; shopOpen?: boolean | undefined; shopBio?: string | undefined };
+export type ShopVendor = { id: string; slug: string; business: string; phone: string; open: boolean; bio: string };
+type VendorUser = { id: string; business: string; phone: string; shopOpen?: boolean | undefined; shopBio?: string | undefined };
 
 function hash4(s: string) {
   let h = 5381;
@@ -146,23 +146,23 @@ function hash4(s: string) {
   return h.toString(36).slice(-4);
 }
 
-/** Public store address for a vendor: business name + short code (never the email). */
-export function vendorSlug(business: string, email: string) {
+/** Public store address for a vendor: business name + short code from the account id (never the email). */
+export function vendorSlug(business: string, id: string) {
   const base = business
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
-  return `${base || "shop"}-${hash4(email.toLowerCase())}`;
+  return `${base || "shop"}-${hash4(id.toLowerCase())}`;
 }
 
 /** Only public details of each vendor — no email shown, no password. */
 export function shopVendors(users: VendorUser[]) {
   const map = new Map<string, ShopVendor>();
   users.forEach((u) =>
-    map.set(u.email, {
-      email: u.email,
-      slug: vendorSlug(u.business, u.email),
+    map.set(u.id, {
+      id: u.id,
+      slug: vendorSlug(u.business, u.id),
       business: u.business || "EBH Seller",
       phone: u.phone,
       open: u.shopOpen !== false,
@@ -186,7 +186,7 @@ export function shopListing(
   const vendors = shopVendors(users);
   const q = (filter.q ?? "").trim().toLowerCase();
   return products
-    .map((p) => ({ p, vendor: vendors.get(p.ownerEmail) }))
+    .map((p) => ({ p, vendor: vendors.get(p.ownerId) }))
     .filter((x): x is { p: Product; vendor: ShopVendor } => !!x.vendor && x.vendor.open && !x.p.hidden)
     .filter(({ p }) => !filter.category || filter.category === "All" || p.category === filter.category)
     .filter(({ vendor }) => !filter.vendorSlug || vendor.slug === filter.vendorSlug)
@@ -273,6 +273,15 @@ export function paymentMatches(expectedNaira: number, paid: { status: string; am
   return paid.status === "success" && paid.currency === "NGN" && paid.amountKobo === toKobo(expectedNaira);
 }
 
+/** Paystack attempt codes are the checkout code plus "-r…" for each retry. */
+export function paymentBase(reference: string) {
+  return reference.split("-r")[0] ?? reference;
+}
+
+export function retryReference(base: string, now = Date.now()) {
+  return `${base}-r${now.toString(36)}`;
+}
+
 export function validateEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? null : "Enter a valid email for your Paystack receipt";
 }
@@ -288,4 +297,22 @@ const SAMPLE_NAMES = ["Ankara Wrap Dress", "Shea Butter Glow Cream", "Leather To
 
 export function isSampleProduct(p: Pick<Product, "name" | "imageUrl">) {
   return SAMPLE_NAMES.includes(p.name) && SAMPLE_PHOTOS.some((id) => p.imageUrl.includes(id));
+}
+
+// ---------- Remember me ----------
+export const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Should a saved sign-in still count? Remember me on: up to 30 days.
+ * Remember me off: only until the browser is closed (the tab flag is gone).
+ */
+export function rememberStillValid(input: { remember: boolean; expires: number; tabFlag: boolean; now: number }) {
+  if (input.remember) return !input.expires || input.expires >= input.now;
+  return input.tabFlag;
+}
+
+/** Admin is only the owner's email or the EBH admin email (checked again online after the email is confirmed). */
+export const ADMIN_EMAILS = ["eminentbusinesshubhotmail@gmail.com", "admin@eminentbusinesshub.com"];
+export function isAdminEmail(email: string | null | undefined) {
+  return !!email && ADMIN_EMAILS.includes(email.trim().toLowerCase());
 }

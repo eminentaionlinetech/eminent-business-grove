@@ -16,5 +16,5 @@ export const Route = createFileRoute("/_authenticated/customers")({
 
 function CustomersPage() {
   const { session, customers, orders, isAdmin } = useApp();
-  return <CustomerList ownerEmail={session.email} customers={customers} orders={orders} showOwner={isAdmin} />;
+  return <CustomerList ownerId={session.id} customers={customers} orders={orders} showOwner={isAdmin} />;
 }

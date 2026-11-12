@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { getPaystackStatus } from "@/lib/paystack.functions";
-import { Download, LogOut, Mail, Upload, CreditCard, ShieldAlert } from "lucide-react";
+import { LogOut, Mail, CreditCard, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ import { useApp } from "@/hooks/use-store";
 import { changePassword, logout } from "@/lib/auth";
 import { updateProfile } from "@/lib/actions";
 import { WELCOME_TEMPLATE_HTML, getEmailConfig, isEmailConfigured, saveEmailConfig, sendWelcomeEmail } from "@/lib/email";
-import { exportBackup, importBackup } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -58,14 +57,13 @@ function SettingsPage() {
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
   const [cfg, setCfg] = useState({ publicKey: "", serviceId: "", templateId: "", replyTo: "" });
-  const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setCfg(getEmailConfig()), []);
+  useEffect(() => setCfg(getEmailConfig()), [isAdmin]);
 
-  const saveProfile = () => {
-    const res = updateProfile(session.email, { business: business.trim(), phone: phone.trim(), email });
+  const saveProfile = async () => {
+    const res = await updateProfile(session.id, session.email, { business: business.trim(), phone: phone.trim(), email });
     if (!res.ok) { toast.error(res.error); return; }
-    toast.success("Profile saved");
+    toast.success(res.emailPending ? "Saved. Open the link sent to your new email to finish changing it." : "Profile saved");
   };
 
   const savePassword = async () => {
@@ -76,23 +74,6 @@ function SettingsPage() {
     toast.success("Password changed");
   };
 
-  const download = () => {
-    const blob = new Blob([exportBackup()], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `ebh-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  const restore = async (file: File) => {
-    try {
-      importBackup(await file.text());
-      toast.success("Backup restored");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not read this file");
-    }
-  };
 
   return (
     <div className="space-y-5">
@@ -129,8 +110,8 @@ function SettingsPage() {
             </div>
             <Button onClick={savePassword} variant="outline">Change password</Button>
             <p className="flex gap-2 rounded-lg bg-secondary p-3 text-xs text-muted-foreground">
-              <ShieldAlert className="h-4 w-4 shrink-0 text-navy" />
-              Sign-in is saved on this device only. For real online security, a proper sign-in server is needed later.
+              <ShieldCheck className="h-4 w-4 shrink-0 text-navy" />
+              Your account is protected online. You can sign in on any phone.
             </p>
           </div>
         </Panel>
@@ -148,11 +129,11 @@ function SettingsPage() {
                 </div>
               ))}
               <div className="flex flex-wrap gap-2">
-                <Button className={goldBtn} onClick={() => { saveEmailConfig(cfg); toast.success("Email settings saved"); }}>Save</Button>
+                <Button className={goldBtn} onClick={async () => { const r = await saveEmailConfig(cfg); if (r.ok) toast.success("Email settings saved"); else toast.error(r.error); }}>Save</Button>
                 <Button
                   variant="outline"
                   onClick={async () => {
-                    saveEmailConfig(cfg);
+                    await saveEmailConfig(cfg);
                     const r = await sendWelcomeEmail(session.email, session.business, "test");
                     if (r.ok) toast.success(`Test email sent to ${session.email}`);
                     else toast.error(r.reason === "not-configured" ? "Add all keys first" : "Sending failed — check Email logs");
@@ -168,13 +149,8 @@ function SettingsPage() {
           </Panel>
         ) : null}
 
-        <Panel title="Backup & restore">
-          <p className="mb-3 text-sm text-muted-foreground">Your data lives on this device. Download a backup file often, and restore it on a new phone.</p>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={download} className={goldBtn}><Download className="h-4 w-4" /> Download backup</Button>
-            <Button variant="outline" onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> Restore backup</Button>
-            <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) restore(f); e.target.value = ""; }} />
-          </div>
+        <Panel title="Your data">
+          <p className="text-sm text-muted-foreground">Your account, products, orders and customers are saved online. Sign in on any phone to see them.</p>
         </Panel>
 
         <Panel title="Payments">
@@ -182,7 +158,7 @@ function SettingsPage() {
         </Panel>
 
         <Panel title="Account">
-          <Button variant="outline" className="text-destructive" onClick={() => { logout(); navigate({ to: "/" }); }}>
+          <Button variant="outline" className="text-destructive" onClick={async () => { await logout(); navigate({ to: "/" }); }}>
             <LogOut className="h-4 w-4" /> Logout
           </Button>
           <p className="mt-2 text-xs text-muted-foreground">Your email, business name and phone stay remembered for next time.</p>

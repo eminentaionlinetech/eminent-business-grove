@@ -6,7 +6,6 @@
 - [x] User pages: Home, Products, Orders, Customers, Marketing Studio, Analytics, Settings
 - [x] Admin dashboard + Users page (delete user, email logs)
 - [x] EmailJS welcome email (keys set in Settings), email logs
-- [x] Backup / restore in Settings
 - [x] README runbook
 - [x] Tests for key rules
 - [x] Original logo — uploaded logo on sign-in/loading screen, cropped symbol in menus, browser tab icon
@@ -17,4 +16,5 @@
 - [x] Seller "My Shop" controls: open/close shop, about text, show/hide products, share link
 - [x] Paystack payments into the owner's account (pay now or pay later)
 - [x] Remove fake example products
+- [x] Everything online: every seller's products visible to all shoppers on any phone; sign in from any phone
 - [ ] EmailJS keys — waiting on the user (enter in Settings as admin)

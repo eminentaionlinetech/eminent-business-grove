@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ProductImage } from "@/components/ebh/ui-bits";
 import { ShopLayout, useCart, useHydrated, useShopData } from "@/components/ebh/shop";
-import { MIN_ONLINE_PAYMENT, cartTotal, formatNaira, groupBySeller, resolveCart, toKobo, toWhatsAppNumber, type CartLine, type ShopVendor } from "@/lib/business";
+import { useShopLoaded } from "@/hooks/use-store";
+import { MIN_ONLINE_PAYMENT, cartTotal, formatNaira, groupBySeller, resolveCart, toWhatsAppNumber, type CartLine, type ShopVendor } from "@/lib/business";
 import { startPaystackPayment } from "@/lib/paystack.functions";
 import { checkoutCart, payLaterInstead, removeFromCart, setCartQuantity } from "@/lib/actions";
 
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/shop/cart")({
 type Placed = { name: string; phone: string; note: string; groups: { vendor: ShopVendor; lines: CartLine[] }[]; total: number; paymentFailed?: string | undefined };
 
 function CartPage() {
-  const hydrated = useHydrated();
+  const hydrated = useShopLoaded();
   const cart = useCart();
   const { products, users } = useShopData();
   const lines = useMemo(() => resolveCart(cart, products, users), [cart, products, users]);
@@ -53,7 +54,9 @@ function CartPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
-    const res = checkoutCart({ name, phone, note, payNow: payNow ? { email } : undefined });
+    setBusy(true);
+    const res = await checkoutCart({ name, phone, note, payNow: payNow ? { email } : undefined });
+    setBusy(false);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -63,14 +66,7 @@ function CartPage() {
       setBusy(true);
       try {
         const pay = await startPayment({
-          data: {
-            email: res.payment.email,
-            amountKobo: toKobo(res.payment.amount),
-            reference: res.payment.reference,
-            customerName: res.payment.name,
-            customerPhone: res.payment.phone,
-            items: res.payment.items,
-          },
+          data: { email: res.payment.email, reference: res.payment.attempt },
         });
         if (pay.ok) {
           window.location.assign(pay.url);

@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, MessageCircle, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShopBrowser, ShopLayout, useHydrated, useShopData } from "@/components/ebh/shop";
+import { useShopLoaded } from "@/hooks/use-store";
 import { shopVendors, toWhatsAppNumber } from "@/lib/business";
 
 export const Route = createFileRoute("/shop/store/$vendor")({
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/shop/store/$vendor")({
 
 function VendorStore() {
   const { vendor: slug } = Route.useParams();
-  const hydrated = useHydrated();
+  const hydrated = useShopLoaded();
   const { users } = useShopData();
   const vendor = useMemo(() => [...shopVendors(users).values()].find((v) => v.slug === slug), [users, slug]);
 

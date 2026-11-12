@@ -27,11 +27,11 @@ export const Route = createFileRoute("/_authenticated/my-shop")({
 
 function MyShopPage() {
   const { session, users, allProducts } = useApp();
-  const me = users.find((u) => u.email === session.email);
+  const me = users.find((u) => u.id === session.id);
   const business = me?.business || session.business || "My shop";
-  const slug = vendorSlug(business, session.email);
+  const slug = vendorSlug(business, session.id);
   const open = me?.shopOpen !== false;
-  const mine = useMemo(() => allProducts.filter((p) => p.ownerEmail === session.email), [allProducts, session.email]);
+  const mine = useMemo(() => allProducts.filter((p) => p.ownerId === session.id), [allProducts, session.id]);
   const visible = mine.filter((p) => !p.hidden).length;
 
   const [bio, setBio] = useState(me?.shopBio ?? "");
@@ -56,7 +56,7 @@ function MyShopPage() {
 
       {!me ? (
         <Panel>
-          <p className="text-sm text-muted-foreground">Your account was not found on this phone, so you have no public store yet.</p>
+          <p className="text-sm text-muted-foreground">Loading your shop…</p>
         </Panel>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -72,7 +72,7 @@ function MyShopPage() {
                 id="shop-open"
                 checked={open}
                 onCheckedChange={(v) => {
-                  updateShopSettings(session.email, { shopOpen: v });
+                  void updateShopSettings(session.id, { shopOpen: v });
                   toast.success(v ? "Your shop is open" : "Your shop is paused");
                 }}
               />
@@ -127,7 +127,7 @@ function MyShopPage() {
                 className="bg-gold text-navy hover:bg-gold/90"
                 disabled={bio.trim() === (me.shopBio ?? "").trim()}
                 onClick={() => {
-                  updateShopSettings(session.email, { shopBio: bio.trim() });
+                  void updateShopSettings(session.id, { shopBio: bio.trim() });
                   toast.success("Saved");
                 }}
               >
@@ -163,7 +163,7 @@ function MyShopPage() {
                     <Switch
                       checked={!p.hidden}
                       aria-label={`Show ${p.name} in shop`}
-                      onCheckedChange={(v) => setProductHidden(p.id, !v)}
+                      onCheckedChange={(v) => void setProductHidden(p.id, !v)}
                     />
                   </li>
                 ))}

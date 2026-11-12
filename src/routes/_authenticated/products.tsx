@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/products")({
 });
 
 function ProductsPage() {
-  const { session, products, isAdmin } = useApp();
+  const { session, products, isAdmin, ownerName } = useApp();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [editing, setEditing] = useState<Product | null>(null);
@@ -114,7 +114,7 @@ function ProductsPage() {
                   <StockBadge stock={p.stock} />
                   {p.hidden ? <span className="rounded-full bg-secondary px-2 py-0.5 text-[0.65rem] font-bold text-muted-foreground">Hidden from shop</span> : null}
                 </div>
-                {isAdmin ? <div className="truncate text-[0.65rem] text-muted-foreground">{p.ownerEmail}</div> : null}
+                {isAdmin ? <div className="truncate text-[0.65rem] text-muted-foreground">{ownerName(p.ownerId)}</div> : null}
                 <div className="flex gap-1 pt-1">
                   <Button
                     size="sm"
@@ -137,7 +137,7 @@ function ProductsPage() {
         </div>
       )}
 
-      <ProductDialog open={open} onOpenChange={setOpen} ownerEmail={session.email} product={editing} />
+      <ProductDialog open={open} onOpenChange={setOpen} ownerId={session.id} product={editing} />
       <AlertDialog open={!!toDelete} onOpenChange={(v) => !v && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -149,7 +149,7 @@ function ProductsPage() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                if (toDelete) deleteProduct(toDelete.id);
+                if (toDelete) void deleteProduct(toDelete.id).then((r) => { if (!r.ok) toast.error(r.error); });
                 toast.success("Product deleted");
                 setToDelete(null);
               }}

@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { AlertTriangle, ShoppingBag, Trophy } from "lucide-react";
 import { BarChart, EmptyState, Panel, StatusBadge } from "./ui-bits";
 import { formatNaira, isLowStock, last7Days, topProducts } from "@/lib/business";
@@ -10,7 +11,10 @@ export function StatusSelect({ order }: { order: Order }) {
     <select
       aria-label="Order status"
       value={order.status}
-      onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
+      onChange={async (e) => {
+        const r = await updateOrderStatus(order.id, e.target.value as OrderStatus);
+        if (!r.ok) toast.error(r.error);
+      }}
       className="rounded-md border bg-card px-2 py-1 text-xs font-semibold"
     >
       <option>Pending</option>
@@ -52,7 +56,7 @@ export function RecentOrders({ orders, showOwner = false, limit = 6 }: { orders:
                   <td className="px-2 py-2.5">
                     {o.productName} <span className="text-muted-foreground">×{o.quantity}</span>
                   </td>
-                  {showOwner ? <td className="px-2 py-2.5 text-xs text-muted-foreground">{o.ownerEmail}</td> : null}
+                  {showOwner ? <td className="px-2 py-2.5 text-xs text-muted-foreground">{o.ownerId.slice(0, 6)}</td> : null}
                   <td className="px-2 py-2.5 text-right font-semibold">{formatNaira(o.total)}</td>
                   <td className="px-4 py-2.5 md:px-5">
                     <div className="flex items-center gap-2">

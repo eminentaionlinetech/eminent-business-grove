@@ -1,19 +1,20 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { readSession, type Session } from "@/lib/auth";
-import {
-  KEYS,
-  subscribe,
-  type AppUser,
-  type Customer,
-  type EmailLog,
-  type Order,
-  type Product,
-} from "@/lib/storage";
+import { db, subscribe, type AppUser, type Customer, type EmailLog, type Order, type Product } from "@/lib/storage";
 
 const EMPTY: never[] = [];
 const cache = new Map<string, { raw: string | null; value: unknown }>();
+const CLOUD: Record<string, keyof typeof db> = {
+  "cloud:users": "users",
+  "cloud:products": "products",
+  "cloud:orders": "orders",
+  "cloud:customers": "customers",
+  "cloud:emailLogs": "emailLogs",
+};
 
 function snapshot<T>(key: string): T[] {
+  const cloud = CLOUD[key];
+  if (cloud) return db[cloud] as unknown as T[];
   const raw = localStorage.getItem(key);
   const hit = cache.get(key);
   if (hit && hit.raw === raw) return hit.value as T[];
@@ -28,39 +29,31 @@ function snapshot<T>(key: string): T[] {
 }
 
 export function useCollection<T>(key: string): T[] {
-  return useSyncExternalStore(
-    subscribe,
-    () => snapshot<T>(key),
-    () => EMPTY as T[],
-  );
+  return useSyncExternalStore(subscribe, () => snapshot<T>(key), () => EMPTY as T[]);
 }
 
-let sessionCache: { raw: string; value: Session | null } | null = null;
-function sessionSnapshot() {
-  const value = readSession();
-  const raw = JSON.stringify(value);
-  if (sessionCache && sessionCache.raw === raw) return sessionCache.value;
-  sessionCache = { raw, value };
-  return value;
+/** true once shop products have arrived from online storage. */
+export function useShopLoaded() {
+  return useSyncExternalStore(subscribe, () => db.shopLoaded, () => false);
 }
 
-/** undefined = still loading (server render / before hydration), null = signed out. */
+/** undefined = still loading, null = signed out. */
 export function useSession(): Session | null | undefined {
-  return useSyncExternalStore(subscribe, sessionSnapshot, () => undefined);
+  return useSyncExternalStore(subscribe, readSession, () => undefined);
 }
 
 /** Data scoped to the signed-in user. Admins see everything. */
 export function useScopedData(session: Session | null | undefined) {
-  const products = useCollection<Product>(KEYS.products);
-  const orders = useCollection<Order>(KEYS.orders);
-  const customers = useCollection<Customer>(KEYS.customers);
-  const users = useCollection<AppUser>(KEYS.users);
-  const emailLogs = useCollection<EmailLog>(KEYS.emailLogs);
+  const products = useCollection<Product>("cloud:products");
+  const orders = useCollection<Order>("cloud:orders");
+  const customers = useCollection<Customer>("cloud:customers");
+  const users = useCollection<AppUser>("cloud:users");
+  const emailLogs = useCollection<EmailLog>("cloud:emailLogs");
 
   return useMemo(() => {
     const isAdmin = session?.role === "admin";
-    const mine = <T extends { ownerEmail: string }>(list: T[]) =>
-      isAdmin ? list : list.filter((x) => x.ownerEmail === session?.email);
+    const mine = <T extends { ownerId: string }>(list: T[]) => (isAdmin ? list : list.filter((x) => x.ownerId === session?.id));
+    const names = new Map(users.map((u) => [u.id, u.business || u.email || "Seller"]));
     return {
       isAdmin,
       products: mine(products),
@@ -71,6 +64,7 @@ export function useScopedData(session: Session | null | undefined) {
       allProducts: products,
       allOrders: orders,
       allCustomers: customers,
+      ownerName: (id: string) => names.get(id) ?? "Seller",
     };
   }, [session, products, orders, customers, users, emailLogs]);
 }

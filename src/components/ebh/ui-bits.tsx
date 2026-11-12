@@ -1,4 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { getPhoto, photoIdOf, requestPhoto } from "@/lib/cloud";
+import { subscribe } from "@/lib/storage";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrderStatus } from "@/lib/storage";
@@ -80,8 +82,18 @@ export function StockBadge({ stock }: { stock: number }) {
   return <span className="rounded-full bg-success-soft px-2.5 py-0.5 text-xs font-bold text-success">{stock} in stock</span>;
 }
 
-export function ProductImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+function useResolvedPhoto(src: string) {
+  const id = photoIdOf(src);
+  const data = useSyncExternalStore(subscribe, () => (id ? getPhoto(id) : undefined), () => undefined);
+  useEffect(() => {
+    if (id) requestPhoto(id);
+  }, [id]);
+  return id ? (data ?? "") : src;
+}
+
+export function ProductImage({ src: raw, alt, className }: { src: string; alt: string; className?: string }) {
   const [failed, setFailed] = useState(false);
+  const src = useResolvedPhoto(raw);
   if (!src || failed) {
     return (
       <div className={cn("grid place-items-center bg-secondary text-navy/40", className)}>

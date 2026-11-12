@@ -1,16 +1,17 @@
-// Browser-only data layer. Everything lives in localStorage on the user's device.
-// All functions must be called from effects, event handlers or store snapshots — never at module scope.
+// App data types, the in-memory copy of the online data, and the few things kept on the phone
+// (shopping cart, unfinished payment, remembered sign-in details).
 
 export type Role = "admin" | "user";
 
 export type AppUser = {
+  id: string;
+  /** Only known for yourself, or for everyone when you are an admin. Never shown in the shop. */
   email: string;
   business: string;
   phone: string;
-  passwordHash: string;
   role: Role;
   createdAt: string;
-  /** false = seller paused their public shop. Missing = open. */
+  /** false = seller paused their public shop. */
   shopOpen?: boolean | undefined;
   /** Short "about my shop" text shown on the seller's store page. */
   shopBio?: string | undefined;
@@ -18,14 +19,14 @@ export type AppUser = {
 
 export type Product = {
   id: string;
-  ownerEmail: string;
+  ownerId: string;
   name: string;
   price: number;
   stock: number;
+  /** A photo link, or `photo:<productId>` for a photo uploaded from the phone. */
   imageUrl: string;
   category: string;
   createdAt: string;
-  /** Shown on the product page in the public shop. */
   description?: string | undefined;
   /** true = seller hid it from the public shop. */
   hidden?: boolean | undefined;
@@ -38,7 +39,7 @@ export type OrderStatus = "Pending" | "Completed" | "Cancelled";
 
 export type Order = {
   id: string;
-  ownerEmail: string;
+  ownerId: string;
   customerName: string;
   customerPhone: string;
   productId: string;
@@ -47,19 +48,18 @@ export type Order = {
   total: number;
   status: OrderStatus;
   createdAt: string;
-  /** Delivery address or message from a shopper (public shop orders). */
   note?: string | undefined;
-  /** "shop" when a shopper placed it from the public shop. */
   source?: "shop" | "manual" | undefined;
-  /** "paid" once Paystack confirmed the payment; "unpaid" = pay later or not finished. */
   paymentStatus?: "paid" | "unpaid" | undefined;
-  /** Paystack reference for this order's payment. */
   paymentRef?: string | undefined;
 };
 
 /** A Paystack payment the shopper started on this phone, waiting to be checked. */
 export type PendingPayment = {
+  /** Checkout code saved on the orders. Paystack attempts use it, plus "-r…" for retries. */
   reference: string;
+  /** The Paystack reference of the latest attempt. */
+  attempt: string;
   orderIds: string[];
   amount: number;
   email: string;
@@ -71,7 +71,7 @@ export type PendingPayment = {
 
 export type Customer = {
   id: string;
-  ownerEmail: string;
+  ownerId: string;
   name: string;
   phone: string;
   email: string;
@@ -94,16 +94,16 @@ export type EmailJsConfig = {
   replyTo: string;
 };
 
+/** Online collections (kept in memory) and phone-only keys (localStorage). */
 export const KEYS = {
-  users: "eminent_users",
-  products: "ebh_products",
-  orders: "ebh_orders",
-  customers: "ebh_customers",
-  emailLogs: "ebh_email_logs",
-  emailjs: "ebh_emailjs_config",
+  users: "cloud:users",
+  products: "cloud:products",
+  orders: "cloud:orders",
+  customers: "cloud:customers",
+  emailLogs: "cloud:emailLogs",
   cart: "ebh_cart",
   pendingPayment: "ebh_pending_payment",
-  // session keys
+  // remembered sign-in details
   email: "ebh_email",
   business: "ebh_business",
   phone: "ebh_phone",
@@ -113,6 +113,14 @@ export const KEYS = {
   role: "ebh_role",
   remember: "ebh_remember",
   expires: "ebh_session_expires",
+} as const;
+
+/** Where older versions kept everything on the phone. Read once to move it online. */
+export const LEGACY = {
+  users: "eminent_users",
+  products: "ebh_products",
+  orders: "ebh_orders",
+  customers: "ebh_customers",
 } as const;
 
 export const SESSION_FLAG = "ebh_session_active";
@@ -152,64 +160,53 @@ export function uid(prefix = "id") {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 }
 
-// ---------- Collections ----------
-export const getUsers = () => readJson<AppUser[]>(KEYS.users, []);
-export const setUsers = (v: AppUser[]) => writeJson(KEYS.users, v);
-export const getProducts = () => readJson<Product[]>(KEYS.products, []);
-export const setProducts = (v: Product[]) => writeJson(KEYS.products, v);
-export const getOrders = () => readJson<Order[]>(KEYS.orders, []);
-export const setOrders = (v: Order[]) => writeJson(KEYS.orders, v);
-export const getCustomers = () => readJson<Customer[]>(KEYS.customers, []);
-export const setCustomers = (v: Customer[]) => writeJson(KEYS.customers, v);
-export const getEmailLogs = () => readJson<EmailLog[]>(KEYS.emailLogs, []);
-export const setEmailLogs = (v: EmailLog[]) => writeJson(KEYS.emailLogs, v);
+// ---------- Online data, in memory ----------
+type CloudData = {
+  users: AppUser[];
+  products: Product[];
+  orders: Order[];
+  customers: Customer[];
+  emailLogs: EmailLog[];
+  emailConfig: Partial<EmailJsConfig>;
+  /** Shop products + sellers have arrived at least once. */
+  shopLoaded: boolean;
+  /** The signed-in seller's orders/customers have arrived at least once. */
+  privateLoaded: boolean;
+};
+
+export const db: CloudData = {
+  users: [],
+  products: [],
+  orders: [],
+  customers: [],
+  emailLogs: [],
+  emailConfig: {},
+  shopLoaded: false,
+  privateLoaded: false,
+};
+
+export function setDb(patch: Partial<CloudData>) {
+  Object.assign(db, patch);
+  notify();
+}
+
+export const getUsers = () => db.users;
+export const getProducts = () => db.products;
+export const getOrders = () => db.orders;
+export const getCustomers = () => db.customers;
+export const getEmailLogs = () => db.emailLogs;
+
+// ---------- Phone-only ----------
 export const getCart = () => readJson<CartItem[]>(KEYS.cart, []);
 export const setCart = (v: CartItem[]) => writeJson(KEYS.cart, v);
-export const getPendingPayment = () => readJson<PendingPayment | null>(KEYS.pendingPayment, null);
+export const getPendingPayment = () => {
+  const p = readJson<PendingPayment | null>(KEYS.pendingPayment, null);
+  return p && !p.attempt ? { ...p, attempt: p.reference } : p;
+};
 export function setPendingPayment(v: PendingPayment | null) {
   if (v) writeJson(KEYS.pendingPayment, v);
   else {
     localStorage.removeItem(KEYS.pendingPayment);
     notify();
   }
-}
-
-export function addEmailLog(log: Omit<EmailLog, "id" | "createdAt">) {
-  const logs = getEmailLogs();
-  logs.unshift({ ...log, id: uid("mail"), createdAt: new Date().toISOString() });
-  setEmailLogs(logs.slice(0, 200));
-}
-
-// ---------- Backup / restore ----------
-const BACKUP_KEYS = [
-  KEYS.users,
-  KEYS.products,
-  KEYS.orders,
-  KEYS.customers,
-  KEYS.emailLogs,
-  KEYS.emailjs,
-  KEYS.email,
-  KEYS.business,
-  KEYS.phone,
-  KEYS.password,
-  KEYS.remember,
-];
-
-export function exportBackup() {
-  const data: Record<string, string | null> = {};
-  BACKUP_KEYS.forEach((k) => (data[k] = localStorage.getItem(k)));
-  return JSON.stringify({ app: "eminent-business-hub", version: 1, exportedAt: new Date().toISOString(), data }, null, 2);
-}
-
-export function importBackup(json: string) {
-  const parsed = JSON.parse(json) as { app?: string; data?: Record<string, string | null> };
-  if (parsed.app !== "eminent-business-hub" || !parsed.data) {
-    throw new Error("This file is not an Eminent Business Hub backup.");
-  }
-  Object.entries(parsed.data).forEach(([k, v]) => {
-    if (!BACKUP_KEYS.includes(k as (typeof BACKUP_KEYS)[number])) return;
-    if (v === null) localStorage.removeItem(k);
-    else localStorage.setItem(k, v);
-  });
-  notify();
 }

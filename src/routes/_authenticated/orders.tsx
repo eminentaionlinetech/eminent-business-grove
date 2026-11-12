@@ -34,7 +34,7 @@ function waLink(phone: string, text: string) {
 }
 
 function OrdersPage() {
-  const { session, orders, products, customers, isAdmin } = useApp();
+  const { session, orders, products, customers, isAdmin, ownerName } = useApp();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const [open, setOpen] = useState(false);
@@ -109,7 +109,7 @@ function OrdersPage() {
                 </div>
                 <div className="mt-0.5 text-sm text-muted-foreground">
                   {o.productName} × {o.quantity} • {new Date(o.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
-                  {isAdmin ? ` • ${o.ownerEmail}` : ""}
+                  {isAdmin ? ` • ${ownerName(o.ownerId)}` : ""}
                 </div>
                 {o.note ? <div className="mt-1 text-xs text-muted-foreground">Delivery: {o.note}</div> : null}
               </div>
@@ -132,7 +132,7 @@ function OrdersPage() {
                   variant="ghost"
                   aria-label="Delete order"
                   onClick={() => {
-                    deleteOrder(o.id);
+                    void deleteOrder(o.id).then((r) => { if (!r.ok) toast.error(r.error); });
                     toast.success("Order deleted");
                   }}
                 >
@@ -144,7 +144,7 @@ function OrdersPage() {
         </div>
       )}
 
-      <OrderDialog open={open} onOpenChange={setOpen} ownerEmail={session.email} products={products} customers={customers} />
+      <OrderDialog open={open} onOpenChange={setOpen} ownerId={session.id} products={products} customers={customers} />
     </div>
   );
 }

@@ -1,44 +1,34 @@
-// Client-side demo auth. Accounts and passwords live only in this browser's localStorage.
-// Real production use needs server-side auth (e.g. Lovable Cloud) for secure admin access.
-import { KEYS, SESSION_FLAG, getUsers, notify, setUsers, type AppUser, type Role } from "./storage";
+// Online accounts (Lovable Cloud). The phone only remembers details for quick sign-in.
+import type { User } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { KEYS, LEGACY, SESSION_FLAG, notify, readJson, type Role } from "./storage";
+import { THIRTY_DAYS_MS, isAdminEmail, rememberStillValid } from "./business";
+import { refreshAll, setViewer, startLiveUpdates } from "./cloud";
+import { moveLocalDataOnline } from "./migrate";
 
-export const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+export { THIRTY_DAYS_MS, isAdminEmail };
 export const DEFAULT_ADMIN_EMAIL = "admin@eminentbusinesshub.com";
-/** The business owner's email: always admin, and the Reply-To for welcome emails. */
+/** The business owner's email: admin, and the Reply-To for welcome emails. */
 export const OWNER_EMAIL = "eminentbusinesshubhotmail@gmail.com";
 
-export type Session = {
-  email: string;
-  business: string;
-  phone: string;
-  role: Role;
-};
-
-export function isAdminEmail(email: string | null | undefined) {
-  if (!email) return false;
-  const e = email.trim().toLowerCase();
-  return e.includes("admin") || e === OWNER_EMAIL;
-}
+export type Session = { id: string; email: string; business: string; phone: string; role: Role };
 
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-export async function hashPassword(password: string) {
-  const data = new TextEncoder().encode(`ebh::${password}`);
-  if (globalThis.crypto?.subtle) {
-    const buf = await globalThis.crypto.subtle.digest("SHA-256", data);
-    return Array.from(new Uint8Array(buf))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-  // Fallback for very old browsers: simple non-cryptographic hash (demo only).
-  let h = 0;
-  for (const byte of data) h = (h * 31 + byte) | 0;
-  return `weak_${h}`;
+// Captured before the sign-in client reads the link, so links from emails count as a fresh sign-in.
+const ARRIVED_FROM_LINK =
+  typeof window !== "undefined" && /access_token=|token_hash=|[?&]code=/.test(window.location.hash + window.location.search);
+
+let state: { ready: boolean; session: Session | null } = { ready: false, session: null };
+
+/** undefined = still checking, null = signed out. */
+export function readSession(): Session | null | undefined {
+  return state.ready ? state.session : undefined;
 }
 
-// Saved password for auto-fill when "Remember me" is on. Obfuscated, not encrypted — demo only.
+// ---------- Remembered details ----------
 const encode = (s: string) => btoa(unescape(encodeURIComponent(s)));
 const decode = (s: string) => {
   try {
@@ -48,13 +38,7 @@ const decode = (s: string) => {
   }
 };
 
-export type RememberedDetails = {
-  email: string;
-  business: string;
-  phone: string;
-  password: string;
-  remember: boolean;
-};
+export type RememberedDetails = { email: string; business: string; phone: string; password: string; remember: boolean };
 
 export function getRememberedDetails(): RememberedDetails {
   const saved = localStorage.getItem(KEYS.savedPassword);
@@ -67,183 +51,242 @@ export function getRememberedDetails(): RememberedDetails {
   };
 }
 
-/** Reads the current session. Returns null when signed out or the session expired. */
-export function readSession(now = Date.now()): Session | null {
-  if (localStorage.getItem(KEYS.loggedIn) !== "true") return null;
-  const email = localStorage.getItem(KEYS.email);
-  if (!email) return null;
-
-  const remember = localStorage.getItem(KEYS.remember) === "true";
-  if (remember) {
-    const expires = Number(localStorage.getItem(KEYS.expires) ?? 0);
-    if (expires && expires < now) return null;
-  } else if (sessionStorage.getItem(SESSION_FLAG) !== "1") {
-    // "Remember me" was off and the browser was closed since sign-in.
-    return null;
+function rememberDetails(d: { email?: string; business?: string; phone?: string; password?: string; remember?: boolean }) {
+  if (d.email) localStorage.setItem(KEYS.email, d.email);
+  if (d.business) localStorage.setItem(KEYS.business, d.business);
+  if (d.phone) localStorage.setItem(KEYS.phone, d.phone);
+  if (d.remember !== undefined) localStorage.setItem(KEYS.remember, d.remember ? "true" : "false");
+  if (d.password !== undefined) {
+    if (d.remember === false) localStorage.removeItem(KEYS.savedPassword);
+    else localStorage.setItem(KEYS.savedPassword, encode(d.password));
+    localStorage.setItem(KEYS.password, "saved-online");
   }
+}
 
-  const role: Role = isAdminEmail(email) ? "admin" : "user";
+/** Starts the remember-me clock: 30 days when on, until the browser closes when off. */
+function markSession(remember: boolean) {
+  localStorage.setItem(KEYS.remember, remember ? "true" : "false");
+  if (remember) localStorage.setItem(KEYS.expires, String(Date.now() + THIRTY_DAYS_MS));
+  else localStorage.removeItem(KEYS.expires);
+  sessionStorage.setItem(SESSION_FLAG, "1");
+}
+
+function savedSignInStillValid() {
+  return rememberStillValid({
+    remember: localStorage.getItem(KEYS.remember) !== "false",
+    expires: Number(localStorage.getItem(KEYS.expires) ?? 0),
+    tabFlag: sessionStorage.getItem(SESSION_FLAG) === "1",
+    now: Date.now(),
+  });
+}
+
+// ---------- Session from the online account ----------
+async function buildSession(user: User): Promise<Session> {
+  const [{ data: profile }, { data: roles }] = await Promise.all([
+    supabase.from("profiles").select("business, phone").eq("id", user.id).maybeSingle(),
+    supabase.from("user_roles").select("role").eq("user_id", user.id),
+  ]);
+  const meta = (user.user_metadata ?? {}) as { business?: string; phone?: string };
   return {
-    email,
-    business: localStorage.getItem(KEYS.business) ?? "",
-    phone: localStorage.getItem(KEYS.phone) ?? "",
-    role,
+    id: user.id,
+    email: user.email ?? "",
+    business: profile?.business || meta.business || "",
+    phone: profile?.phone || meta.phone || "",
+    role: roles?.some((r) => r.role === "admin") ? "admin" : "user",
   };
 }
 
-function startSession(user: AppUser, password: string, remember: boolean) {
-  localStorage.setItem(KEYS.email, user.email);
-  localStorage.setItem(KEYS.business, user.business);
-  localStorage.setItem(KEYS.phone, user.phone);
-  localStorage.setItem(KEYS.password, user.passwordHash);
-  localStorage.setItem(KEYS.remember, remember ? "true" : "false");
-  if (remember) {
-    localStorage.setItem(KEYS.savedPassword, encode(password));
-    localStorage.setItem(KEYS.expires, String(Date.now() + THIRTY_DAYS_MS));
-  } else {
-    localStorage.removeItem(KEYS.savedPassword);
-    localStorage.removeItem(KEYS.expires);
-  }
-  sessionStorage.setItem(SESSION_FLAG, "1");
-  localStorage.setItem(KEYS.loggedIn, "true");
-  // Detect if admin
-  const isAdmin = isAdminEmail(user.email);
-  localStorage.setItem(KEYS.role, isAdmin ? "admin" : "user");
-  notify();
+let applying: { id: string | null; promise: Promise<void> } | null = null;
+
+function applyUser(user: User | null, force = false): Promise<void> {
+  const id = user?.id ?? null;
+  if (!force && applying && applying.id === id) return applying.promise;
+  const promise = (async () => {
+    if (!user) {
+      setViewer(null);
+      state = { ready: true, session: null };
+      notify();
+      await refreshAll();
+      return;
+    }
+    const session = await buildSession(user);
+    setViewer({ id: session.id, email: session.email, isAdmin: session.role === "admin" });
+    rememberDetails({ email: session.email, business: session.business, phone: session.phone });
+    localStorage.setItem(KEYS.loggedIn, "true");
+    localStorage.setItem(KEYS.role, session.role);
+    try {
+      await moveLocalDataOnline(session);
+    } catch (e) {
+      console.error("Could not move old phone data online", e);
+    }
+    await refreshAll();
+    state = { ready: true, session };
+    notify();
+  })();
+  applying = { id, promise };
+  return promise;
 }
 
-export type AuthResult = { ok: true; user: AppUser; isNew: boolean } | { ok: false; error: string };
+let started = false;
+/** Called once when the app opens in the browser. */
+export function initAuth() {
+  if (started || typeof window === "undefined") return;
+  started = true;
+  startLiveUpdates();
+  supabase.auth.onAuthStateChange((event, s) => {
+    if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED" && event !== "PASSWORD_RECOVERY") return;
+    // Never wait on the sign-in client inside its own callback.
+    setTimeout(() => void applyUser(s?.user ?? null, event === "USER_UPDATED"), 0);
+  });
+  void (async () => {
+    const { data } = await supabase.auth.getSession();
+    let user = data.session?.user ?? null;
+    if (user && (ARRIVED_FROM_LINK || window.location.pathname.startsWith("/reset-password"))) {
+      markSession(true);
+    } else if (user && !savedSignInStillValid()) {
+      await supabase.auth.signOut();
+      user = null;
+    }
+    await applyUser(user);
+  })();
+}
 
-export async function signUp(input: {
-  email: string;
-  business: string;
-  phone: string;
-  password: string;
-  remember: boolean;
-}): Promise<AuthResult> {
+/** Re-reads business name/phone after a profile change. */
+export async function reloadSession() {
+  const { data } = await supabase.auth.getUser();
+  await applyUser(data.user, true);
+}
+
+// ---------- Sign up / sign in ----------
+export type AuthResult =
+  | { ok: true; session: Session; needsConfirm?: false }
+  | { ok: true; needsConfirm: true; email: string }
+  | { ok: false; error: string };
+
+function friendly(message: string) {
+  if (/already registered|already exists/i.test(message)) return "An account with this email already exists. Please sign in.";
+  if (/rate limit|too many/i.test(message)) return "Too many tries. Please wait a few minutes and try again.";
+  if (/password/i.test(message) && /(weak|short|least|pwned|leaked)/i.test(message))
+    return "Choose a stronger password (at least 6 characters, not a common one).";
+  if (/network|fetch/i.test(message)) return "No internet connection. Check your data and try again.";
+  return message;
+}
+
+async function signedInResult(user: User): Promise<AuthResult> {
+  await applyUser(user);
+  return state.session ? { ok: true, session: state.session } : { ok: false, error: "Could not open your account. Try again." };
+}
+
+export async function signUp(input: { email: string; business: string; phone: string; password: string; remember: boolean }): Promise<AuthResult> {
   const email = normalizeEmail(input.email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Enter a valid email address." };
   if (!input.business.trim()) return { ok: false, error: "Enter your business name." };
   if (input.phone.replace(/\D/g, "").length < 7) return { ok: false, error: "Enter a valid phone number." };
   if (input.password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
 
-  const users = getUsers();
-  if (users.some((u) => u.email === email)) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password: input.password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/`,
+      data: { business: input.business.trim().slice(0, 120), phone: input.phone.trim().slice(0, 40) },
+    },
+  });
+  if (error) return { ok: false, error: friendly(error.message) };
+  if (data.user && data.user.identities && data.user.identities.length === 0) {
     return { ok: false, error: "An account with this email already exists. Please sign in." };
   }
-  const user: AppUser = {
-    email,
-    business: input.business.trim(),
-    phone: input.phone.trim(),
-    passwordHash: await hashPassword(input.password),
-    role: isAdminEmail(email) ? "admin" : "user",
-    createdAt: new Date().toISOString(),
-  };
-  setUsers([...users, user]);
-  startSession(user, input.password, input.remember);
-  return { ok: true, user, isNew: true };
+  rememberDetails({ email, business: input.business.trim(), phone: input.phone.trim(), password: input.password, remember: input.remember });
+  if (data.session && data.user) {
+    markSession(input.remember);
+    return signedInResult(data.user);
+  }
+  return { ok: true, needsConfirm: true, email };
 }
 
 export async function signIn(input: { email: string; password: string; remember: boolean }): Promise<AuthResult> {
   const email = normalizeEmail(input.email);
   if (!email || !input.password) return { ok: false, error: "Enter your email and password." };
-  const users = getUsers();
-  const hash = await hashPassword(input.password);
-  const existing = users.find((u) => u.email === email);
-
-  if (!existing) {
-    if (isAdminEmail(email)) {
-      // First admin sign-in on this device creates the admin account.
-      const admin: AppUser = {
-        email,
-        business: localStorage.getItem(KEYS.business) || "Eminent Business Hub",
-        phone: localStorage.getItem(KEYS.phone) || "",
-        passwordHash: hash,
-        role: "admin",
-        createdAt: new Date().toISOString(),
-      };
-      setUsers([...users, admin]);
-      startSession(admin, input.password, input.remember);
-      return { ok: true, user: admin, isNew: false };
+  markSession(input.remember);
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: input.password });
+  if (error || !data.user) {
+    const msg = error?.message ?? "";
+    if (/not confirmed/i.test(msg)) {
+      return { ok: false, error: `Please confirm your email first: open the link we sent to ${email} (check spam too), then sign in.` };
     }
-    return { ok: false, error: "No account found for this email on this device. Create an account first." };
+    if (/network|fetch/i.test(msg)) return { ok: false, error: friendly(msg) };
+    const moved = await moveOldPhoneAccountOnline(email, input.password);
+    if (moved) return moved;
+    return { ok: false, error: "Wrong email or password. If you forgot your password, tap \"Forgot password?\"." };
   }
-
-  if (existing.passwordHash !== hash) return { ok: false, error: "Wrong password. Please try again." };
-  startSession(existing, input.password, input.remember);
-  return { ok: true, user: existing, isNew: false };
+  rememberDetails({ email, password: input.password, remember: input.remember });
+  return signedInResult(data.user);
 }
 
 /** Signs out but KEEPS email, business, phone and password so the next sign-in is remembered. */
-export function logout() {
+export async function logout() {
   localStorage.removeItem(KEYS.loggedIn);
   localStorage.removeItem(KEYS.role);
   sessionStorage.removeItem(SESSION_FLAG);
+  state = { ready: true, session: null };
   notify();
+  await supabase.auth.signOut();
 }
 
 export async function changePassword(email: string, current: string, next: string) {
-  const users = getUsers();
-  const user = users.find((u) => u.email === email);
-  if (!user) return { ok: false as const, error: "Account not found." };
-  if (user.passwordHash !== (await hashPassword(current))) return { ok: false as const, error: "Current password is wrong." };
   if (next.length < 6) return { ok: false as const, error: "New password must be at least 6 characters." };
-  user.passwordHash = await hashPassword(next);
-  setUsers(users);
-  localStorage.setItem(KEYS.password, user.passwordHash);
+  const check = await supabase.auth.signInWithPassword({ email, password: current });
+  if (check.error) return { ok: false as const, error: "Current password is wrong." };
+  const { error } = await supabase.auth.updateUser({ password: next });
+  if (error) return { ok: false as const, error: friendly(error.message) };
   if (localStorage.getItem(KEYS.savedPassword)) localStorage.setItem(KEYS.savedPassword, encode(next));
-  notify();
   return { ok: true as const };
 }
 
-/** Last 10 digits so "0803 123 4567" and "+234 803 123 4567" match. */
-export function phoneKey(phone: string) {
-  return phone.replace(/\D/g, "").slice(-10);
-}
-
-/** Step 1 of password recovery: find the account created with this email on this device. */
-export function findAccount(email: string) {
+// ---------- Password recovery (reset link by email) ----------
+export async function requestPasswordReset(email: string) {
   const e = normalizeEmail(email);
-  const user = getUsers().find((u) => u.email === e);
-  if (!user) return null;
-  return { email: user.email, business: user.business, verifyBy: phoneKey(user.phone) ? ("phone" as const) : ("business" as const) };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return { ok: false as const, error: "Enter the email you used to create your account." };
+  const { error } = await supabase.auth.resetPasswordForEmail(e, { redirectTo: `${window.location.origin}/reset-password` });
+  if (error) return { ok: false as const, error: friendly(error.message) };
+  return { ok: true as const };
 }
 
-export type ResetResult = { ok: true; user: AppUser } | { ok: false; error: string };
+/** On the reset page, after opening the email link: set the new password and stay signed in. */
+export async function finishPasswordReset(newPassword: string): Promise<AuthResult> {
+  if (newPassword.length < 6) return { ok: false, error: "New password must be at least 6 characters." };
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error || !data.user) {
+    return { ok: false, error: /session/i.test(error?.message ?? "") ? "This reset link has expired. Ask for a new one." : friendly(error?.message ?? "Try again.") };
+  }
+  markSession(true);
+  rememberDetails({ email: data.user.email ?? "", password: newPassword, remember: true });
+  await applyUser(data.user, true);
+  return state.session ? { ok: true, session: state.session } : { ok: false, error: "Try again." };
+}
 
-/**
- * Step 2 of password recovery: confirm it's the owner (phone number used at sign-up,
- * or business name when no phone was saved), set the new password and sign them in.
- */
-export async function resetPassword(input: {
-  email: string;
-  proof: string;
-  newPassword: string;
-  remember?: boolean;
-}): Promise<ResetResult> {
-  const email = normalizeEmail(input.email);
-  const users = getUsers();
-  const user = users.find((u) => u.email === email);
-  if (!user) return { ok: false, error: "No account found with this email on this device." };
+// ---------- Accounts from the older on-phone version ----------
+type LegacyUser = { email: string; business: string; phone: string; passwordHash: string };
 
-  const usesPhone = !!phoneKey(user.phone);
-  const matches = usesPhone
-    ? phoneKey(input.proof).length >= 7 && phoneKey(input.proof) === phoneKey(user.phone)
-    : input.proof.trim().toLowerCase() === user.business.trim().toLowerCase();
-  if (!matches) {
+async function legacyHash(password: string) {
+  const data = new TextEncoder().encode(`ebh::${password}`);
+  const buf = await globalThis.crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** An account made on this phone before accounts went online: create it online with the same details. */
+async function moveOldPhoneAccountOnline(email: string, password: string): Promise<AuthResult | null> {
+  const old = readJson<LegacyUser[]>(LEGACY.users, []).find((u) => u.email === email);
+  if (!old || old.passwordHash !== (await legacyHash(password))) return null;
+  const res = await signUp({ email, business: old.business || "My business", phone: old.phone || "0000000", password, remember: true });
+  if (!res.ok) return null;
+  if (res.needsConfirm) {
     return {
       ok: false,
-      error: usesPhone
-        ? "That phone number doesn't match the one used to create this account."
-        : "That business name doesn't match this account.",
+      error: `Your account is moving online. We sent a confirmation link to ${email} — open it (check spam too), then sign in. Your products come with you.`,
     };
   }
-  if (input.newPassword.length < 6) return { ok: false, error: "New password must be at least 6 characters." };
-
-  user.passwordHash = await hashPassword(input.newPassword);
-  setUsers(users);
-  startSession(user, input.newPassword, input.remember ?? true);
-  return { ok: true, user };
+  return res;
 }
-
-export const ADMIN_RECOVERY_SNIPPET = `localStorage.setItem('ebh_email','${DEFAULT_ADMIN_EMAIL}'); localStorage.setItem('ebh_is_logged_in','true'); localStorage.setItem('ebh_role','admin'); localStorage.setItem('ebh_remember','true'); location.reload();`;

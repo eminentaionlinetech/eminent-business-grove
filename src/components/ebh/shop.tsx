@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { LayoutDashboard, Search, ShoppingCart, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useCollection, useSession } from "@/hooks/use-store";
+import { useCollection, useSession, useShopLoaded } from "@/hooks/use-store";
 import { CATEGORIES, cartCount, formatNaira, shopListing, type ShopItem } from "@/lib/business";
 import { KEYS, type AppUser, type CartItem, type Product } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -124,7 +124,7 @@ export function ShopSkeleton() {
 
 /** Search + category chips + product grid. Used by the main shop and each vendor's store. */
 export function ShopBrowser({ vendorSlug, emptyAction }: { vendorSlug?: string | undefined; emptyAction?: ReactNode }) {
-  const hydrated = useHydrated();
+  const hydrated = useShopLoaded();
   const { products, users } = useShopData();
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("All");

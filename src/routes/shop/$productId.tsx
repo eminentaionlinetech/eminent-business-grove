@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ProductImage, StockBadge } from "@/components/ebh/ui-bits";
 import { ShopCard, ShopLayout, useCart, useHydrated, useShopData } from "@/components/ebh/shop";
+import { useShopLoaded } from "@/hooks/use-store";
 import { formatNaira, shopListing, toWhatsAppNumber } from "@/lib/business";
 import { addToCart } from "@/lib/actions";
 
@@ -29,7 +30,7 @@ function ProductPage() {
 }
 
 function ProductView({ productId }: { productId: string }) {
-  const hydrated = useHydrated();
+  const hydrated = useShopLoaded();
   const { products, users } = useShopData();
   const all = useMemo(() => shopListing(products, users), [products, users]);
   const item = all.find((p) => p.id === productId);

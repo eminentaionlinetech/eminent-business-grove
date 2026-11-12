@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
@@ -34,6 +35,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -114,6 +120,7 @@ const ShopStoreVendorRoute = ShopStoreVendorRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/customers': typeof AuthenticatedCustomersRoute
@@ -132,6 +139,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/customers': typeof AuthenticatedCustomersRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/customers': typeof AuthenticatedCustomersRoute
@@ -172,6 +181,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/reset-password'
     | '/admin'
     | '/analytics'
     | '/customers'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/reset-password'
     | '/admin'
     | '/analytics'
     | '/customers'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/analytics'
     | '/_authenticated/customers'
@@ -229,6 +241,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ShopProductIdRoute: typeof ShopProductIdRoute
   ShopCartRoute: typeof ShopCartRoute
   ShopPaymentRoute: typeof ShopPaymentRoute
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -393,6 +413,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  ResetPasswordRoute: ResetPasswordRoute,
   ShopProductIdRoute: ShopProductIdRoute,
   ShopCartRoute: ShopCartRoute,
   ShopPaymentRoute: ShopPaymentRoute,

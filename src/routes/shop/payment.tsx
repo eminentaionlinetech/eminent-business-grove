@@ -4,9 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Loader2, RefreshCw, Wallet, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShopLayout, useHydrated } from "@/components/ebh/shop";
-import { formatNaira, paymentMatches, toKobo } from "@/lib/business";
+import { formatNaira } from "@/lib/business";
 import { markPaymentPaid, payLaterInstead, retryPayment } from "@/lib/actions";
-import { getOrders, getPendingPayment } from "@/lib/storage";
+import { getPendingPayment } from "@/lib/storage";
 import { startPaystackPayment, verifyPaystackPayment } from "@/lib/paystack.functions";
 
 type Search = { reference?: string | undefined };
@@ -48,15 +48,9 @@ function PaymentPage() {
     if (!hydrated || ran.current) return;
     ran.current = true;
     const pending = getPendingPayment();
-    const ref = reference ?? pending?.reference;
+    const ref = reference ?? pending?.attempt;
     if (!ref) {
       setState({ kind: "none" });
-      return;
-    }
-    // Already confirmed earlier on this phone (page reloaded).
-    const done = getOrders().filter((o) => o.paymentRef === ref && o.paymentStatus === "paid");
-    if (done.length && (!pending || pending.reference !== ref)) {
-      setState({ kind: "paid", amount: done.reduce((s, o) => s + o.total, 0) });
       return;
     }
     verify({ data: { reference: ref } })
@@ -65,11 +59,9 @@ function PaymentPage() {
           setState({ kind: "unpaid", message: "We couldn't confirm this payment with Paystack yet." });
           return;
         }
-        if (pending && pending.reference === ref && paymentMatches(pending.amount, res)) {
-          markPaymentPaid(pending);
-          setState({ kind: "paid", amount: pending.amount });
-        } else if (res.status === "success" && !pending) {
-          setState({ kind: "paid", amount: res.amountKobo / 100 });
+        if (res.paid) {
+          markPaymentPaid();
+          setState({ kind: "paid", amount: res.amount });
         } else if (res.status === "success") {
           setState({ kind: "unpaid", message: "The amount paid doesn't match your order. Please contact the seller." });
         } else {
@@ -86,7 +78,7 @@ function PaymentPage() {
     const next = retryPayment(pending);
     try {
       const res = await start({
-        data: { email: next.email, amountKobo: toKobo(next.amount), reference: next.reference, customerName: next.name, customerPhone: next.phone, items: next.items },
+        data: { email: next.email, reference: next.attempt },
       });
       if (res.ok) {
         window.location.assign(res.url);

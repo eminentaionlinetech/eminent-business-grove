@@ -17,9 +17,12 @@ import {
 import { EmptyState, PageHeader, Panel } from "@/components/ebh/ui-bits";
 import { CustomerList } from "@/components/ebh/CustomerList";
 import { useApp } from "@/hooks/use-store";
-import { deleteUser } from "@/lib/actions";
+import { useServerFn } from "@tanstack/react-start";
+import { adminDeleteUser } from "@/lib/admin.functions";
+import { refreshAll } from "@/lib/cloud";
+import { supabase } from "@/integrations/supabase/client";
 import { formatNaira, revenueOf } from "@/lib/business";
-import { setEmailLogs, type AppUser } from "@/lib/storage";
+import { setDb, type AppUser } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/users")({
@@ -37,11 +40,12 @@ export const Route = createFileRoute("/_authenticated/users")({
 function UsersPage() {
   const { session, isAdmin, users, allOrders, allProducts, allCustomers, emailLogs } = useApp();
   const [toDelete, setToDelete] = useState<AppUser | null>(null);
+  const deleteAccount = useServerFn(adminDeleteUser);
   if (!isAdmin) return <Navigate to="/dashboard" />;
 
   return (
     <div>
-      <PageHeader title="Customers / Users" subtitle="Everyone using Eminent Business Hub on this device" />
+      <PageHeader title="Customers / Users" subtitle="Everyone using Eminent Business Hub" />
       <Tabs defaultValue="users">
         <TabsList className="mb-4">
           <TabsTrigger value="users">Users ({users.length})</TabsTrigger>
@@ -51,13 +55,13 @@ function UsersPage() {
 
         <TabsContent value="users">
           {users.length === 0 ? (
-            <EmptyState icon={<UserRound className="h-5 w-5" />} title="No accounts yet" text="Accounts appear here when people sign up on this device." />
+            <EmptyState icon={<UserRound className="h-5 w-5" />} title="No accounts yet" text="Accounts appear here when people sign up." />
           ) : (
             <div className="grid gap-2 md:grid-cols-2">
               {users.map((u) => {
-                const orders = allOrders.filter((o) => o.ownerEmail === u.email);
+                const orders = allOrders.filter((o) => o.ownerId === u.id);
                 return (
-                  <div key={u.email} className="rounded-2xl border bg-card p-4 shadow-card">
+                  <div key={u.id} className="rounded-2xl border bg-card p-4 shadow-card">
                     <div className="flex items-start gap-3">
                       <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full font-bold", u.role === "admin" ? "bg-gold text-navy" : "bg-navy text-gold")}>
                         {u.role === "admin" ? <ShieldCheck className="h-5 w-5" /> : u.business.slice(0, 1).toUpperCase()}
@@ -67,7 +71,7 @@ function UsersPage() {
                         <div className="truncate text-xs text-muted-foreground">{u.email}</div>
                         <div className="text-xs text-muted-foreground">{u.phone || "No phone"} • Joined {new Date(u.createdAt).toLocaleDateString("en-NG")}</div>
                       </div>
-                      {u.email !== session.email ? (
+                      {u.id !== session.id ? (
                         <Button size="icon" variant="ghost" aria-label={`Delete ${u.email}`} onClick={() => setToDelete(u)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
@@ -76,7 +80,7 @@ function UsersPage() {
                       )}
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="rounded-lg bg-secondary py-2"><b className="block text-sm">{allProducts.filter((p) => p.ownerEmail === u.email).length}</b>products</div>
+                      <div className="rounded-lg bg-secondary py-2"><b className="block text-sm">{allProducts.filter((p) => p.ownerId === u.id).length}</b>products</div>
                       <div className="rounded-lg bg-secondary py-2"><b className="block text-sm">{orders.length}</b>orders</div>
                       <div className="rounded-lg bg-secondary py-2"><b className="block text-sm">{formatNaira(revenueOf(orders))}</b>revenue</div>
                     </div>
@@ -85,11 +89,11 @@ function UsersPage() {
               })}
             </div>
           )}
-          <p className="mt-4 text-xs text-muted-foreground">Passwords are stored as one-way codes and are never shown here.</p>
+          <p className="mt-4 text-xs text-muted-foreground">Passwords are kept safely by the sign-in system and are never shown here.</p>
         </TabsContent>
 
         <TabsContent value="customers">
-          <CustomerList ownerEmail={session.email} customers={allCustomers} orders={allOrders} showOwner embedded />
+          <CustomerList ownerId={session.id} customers={allCustomers} orders={allOrders} showOwner embedded />
         </TabsContent>
 
         <TabsContent value="emails">
@@ -97,7 +101,7 @@ function UsersPage() {
             title="Email logs"
             action={
               emailLogs.length ? (
-                <Button size="sm" variant="outline" onClick={() => setEmailLogs([])}>
+                <Button size="sm" variant="outline" onClick={async () => { await supabase.from("email_logs").delete().neq("kind", ""); setDb({ emailLogs: [] }); }}>
                   Clear
                 </Button>
               ) : null
@@ -141,9 +145,14 @@ function UsersPage() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                if (toDelete) deleteUser(toDelete.email);
-                toast.success("User deleted");
+                const target = toDelete;
                 setToDelete(null);
+                if (!target) return;
+                void deleteAccount({ data: { userId: target.id } }).then(async (r) => {
+                  if (!r.ok) { toast.error(r.error); return; }
+                  toast.success("User deleted");
+                  await refreshAll();
+                });
               }}
             >
               Delete user

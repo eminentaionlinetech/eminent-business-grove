@@ -19,12 +19,12 @@ const goldBtn = "bg-gold text-navy hover:bg-gold/90";
 export function ProductDialog({
   open,
   onOpenChange,
-  ownerEmail,
+  ownerId,
   product,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  ownerEmail: string;
+  ownerId: string;
   product?: Product | null;
 }) {
   const [name, setName] = useState("");
@@ -62,17 +62,19 @@ export function ProductDialog({
     setShowInShop(!product?.hidden);
   }, [open, product]);
 
-  const submit = (e: FormEvent) => {
+  const [saving, setSaving] = useState(false);
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     const p = Number(price);
     const s = Number(stock);
     if (!name.trim()) { toast.error("Enter a product name"); return; }
     if (!(p >= 0) || Number.isNaN(p)) { toast.error("Enter a valid price"); return; }
     if (!Number.isInteger(s) || s < 0) { toast.error("Stock must be a whole number"); return; }
-    try {
-      saveProduct({
+    setSaving(true);
+    const res = await saveProduct({
         id: product?.id,
-        ownerEmail: product?.ownerEmail ?? ownerEmail,
+        ownerId: product?.ownerId ?? ownerId,
         name: name.trim(),
         price: p,
         stock: s,
@@ -81,8 +83,9 @@ export function ProductDialog({
         description: description.trim() || undefined,
         hidden: !showInShop,
       });
-    } catch {
-      toast.error("Your phone's storage for this app is full. Remove some photos or use a photo link.");
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error);
       return;
     }
     toast.success(product ? "Product updated" : "Product added");
@@ -176,7 +179,8 @@ export function ProductDialog({
             <Switch id="p-show" checked={showInShop} onCheckedChange={setShowInShop} />
           </label>
           <DialogFooter>
-            <Button type="submit" className={goldBtn}>
+            <Button type="submit" className={goldBtn} disabled={saving || processing}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {product ? "Save changes" : "Add product"}
             </Button>
           </DialogFooter>
@@ -189,13 +193,13 @@ export function ProductDialog({
 export function OrderDialog({
   open,
   onOpenChange,
-  ownerEmail,
+  ownerId,
   products,
   customers,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  ownerEmail: string;
+  ownerId: string;
   products: Product[];
   customers: Customer[];
 }) {
@@ -223,7 +227,7 @@ export function OrderDialog({
     if (!touchedTotal) setTotal(product ? String(product.price * (Number(quantity) || 0)) : "");
   }, [product, quantity, touchedTotal]);
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     const q = Number(quantity);
     const t = Number(total);
@@ -234,8 +238,8 @@ export function OrderDialog({
       { toast.error(`Only ${product.stock} of ${product.name} left in stock`); return; }
     }
     if (Number.isNaN(t) || t < 0) { toast.error("Enter a valid total"); return; }
-    createOrder({
-      ownerEmail: product.ownerEmail || ownerEmail,
+    const res = await createOrder({
+      ownerId: product.ownerId || ownerId,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       productId: product.id,
@@ -243,6 +247,7 @@ export function OrderDialog({
       total: t,
       status,
     });
+    if (!res.ok) { toast.error(res.error); return; }
     toast.success("Order created");
     onOpenChange(false);
   };
@@ -341,7 +346,7 @@ export function OrderDialog({
   );
 }
 
-export function CustomerDialog({ open, onOpenChange, ownerEmail }: { open: boolean; onOpenChange: (v: boolean) => void; ownerEmail: string }) {
+export function CustomerDialog({ open, onOpenChange, ownerId }: { open: boolean; onOpenChange: (v: boolean) => void; ownerId: string }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -352,10 +357,11 @@ export function CustomerDialog({ open, onOpenChange, ownerEmail }: { open: boole
       setEmail("");
     }
   }, [open]);
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { toast.error("Enter a name"); return; }
-    saveCustomer({ ownerEmail, name: name.trim(), phone: phone.trim(), email: email.trim() });
+    const res = await saveCustomer({ ownerId, name: name.trim(), phone: phone.trim(), email: email.trim() });
+    if (!res.ok) { toast.error(res.error); return; }
     toast.success("Customer added");
     onOpenChange(false);
   };
